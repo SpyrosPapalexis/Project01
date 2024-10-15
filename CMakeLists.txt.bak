@@ -36,7 +36,7 @@ endif()
 # Creating entries for target: cgalexec
 # ############################
 
-add_executable( cgalexec  cgalexec.cpp )
+add_executable( cgalexec  )
 
 add_to_cached_list( CGAL_EXECUTABLE_TARGETS cgalexec )
 
