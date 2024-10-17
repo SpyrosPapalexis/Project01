@@ -9,14 +9,12 @@ using namespace std;
 
 int main(void){
 
-    char buffer[BUFFER] = "";
     char txtbuffer[BUFFER] = "";
     char filename[BUFFER] = "";
 
     cout << "Enter file name:" << endl;
     cin >> filename;
 
-    strcat(filename,buffer);
     int file;
     if ((file = open(filename, O_RDONLY)) == -1) perror("can't open file");
 
