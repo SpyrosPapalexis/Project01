@@ -11,51 +11,50 @@ using namespace std;
 using namespace boost::property_tree;
 
 int make_json(){
+    string content_type = "CG_SHOP_2025_Solution";
+    string instance_uid = "unique_instance_id";
+
+    std::vector<string> steiner_points_x = {"123/456", "789", "1011/1213"};
+    std::vector<string> steiner_points_y = {"314/159", "265", "358/979"};
+
+    std::vector<std::pair<int, int>> edges = {{0, 7}, {7, 8}, {8, 9}};
+
     ptree jsonData;
 
-    jsonData.put("content_type", "CG_SHOP_2025_Solution");
+    jsonData.put("content_type", content_type);
 
-    jsonData.put("instance_uid", "unique_instance_id");
+    jsonData.put("instance_uid", instance_uid);
 
-    ptree steiner_points_x;
-    steiner_points_x.push_back(make_pair("", ptree(std::to_string(123))));  // Ακέραια τιμή ως string
-    steiner_points_x.push_back(make_pair("", ptree(std::to_string(789))));  // Ακέραια τιμή ως string
-    steiner_points_x.push_back(make_pair("", ptree(std::to_string(1011)))); // Ακέραια τιμή ως string
+    ptree pt_steiner_points_x;
+    for (const auto& point : steiner_points_x) {
+        ptree temp_ptree;
+        temp_ptree.put("", point);
+        pt_steiner_points_x.push_back(make_pair("", temp_ptree));
+    }
+    jsonData.add_child("steiner_points_x", pt_steiner_points_x);
 
-    jsonData.add_child("steiner_points_x", steiner_points_x);
+    ptree pt_steiner_points_y;
+    for (const auto& point : steiner_points_y) {
+        ptree temp_ptree;
+        temp_ptree.put("", point);
+        pt_steiner_points_y.push_back(make_pair("", temp_ptree));
+    }
+    jsonData.add_child("steiner_points_y", pt_steiner_points_y);
 
-    // Προσθήκη των steiner_points_y
-    ptree steiner_points_y;
-    steiner_points_y.push_back(make_pair("", ptree(std::to_string(314))));  // Ακέραια τιμή ως string
-    steiner_points_y.push_back(make_pair("", ptree(std::to_string(265))));  // Ακέραια τιμή ως string
-    steiner_points_y.push_back(make_pair("", ptree(std::to_string(358))));  // Ακέραια τιμή ως string
-
-    jsonData.add_child("steiner_points_y", steiner_points_y);
-
-    // Προσθήκη των edges (λίστα ακέραιων τιμών)
-    ptree edges;
-    ptree edge1, edge2, edge3;
-
-    edge1.push_back(make_pair("", ptree(std::to_string(0))));  // Ακέραιες τιμές ως string
-    edge1.push_back(make_pair("", ptree(std::to_string(7))));
-
-    edge2.push_back(make_pair("", ptree(std::to_string(7))));
-    edge2.push_back(make_pair("", ptree(std::to_string(8))));
-
-    edge3.push_back(make_pair("", ptree(std::to_string(8))));
-    edge3.push_back(make_pair("", ptree(std::to_string(9))));
-
-    edges.push_back(make_pair("", edge1));
-    edges.push_back(make_pair("", edge2));
-    edges.push_back(make_pair("", edge3));
-
-    jsonData.add_child("edges", edges);
+    ptree pt_edges;
+    for (const auto& edge : edges) {
+        ptree pt_edge;
+        pt_edge.push_back(make_pair("", ptree(to_string(edge.first))));
+        pt_edge.push_back(make_pair("", ptree(to_string(edge.second))));
+        pt_edges.push_back(make_pair("", pt_edge));
+    }
+    jsonData.add_child("edges", pt_edges);
 
     try {
         write_json("output.json", jsonData);
         cout << "output.json created successfully" << endl;
     } catch (const json_parser_error &e) {
-        cerr << "couldn't create JSON: " << e.what() << endl;
+        cerr << "errot at creating JSON file: " << e.what() << endl;
         return 1;
     }
 
@@ -111,6 +110,6 @@ int main(void){
         additional_constraints.push_back(constraint);
     }
 
-    make_json();
+    //make_json();
     return 0;
 }
