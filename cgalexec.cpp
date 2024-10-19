@@ -10,6 +10,13 @@
 using namespace std;
 using namespace boost::property_tree;
 
+int make_json(){
+ return 0;
+}
+
+
+
+
 int main(void){
 
     char txtbuffer[BUFFER] = "";
@@ -22,7 +29,7 @@ int main(void){
     try {
         read_json(filename, jsonData);
     } catch (const json_parser_error &e) {
-        cerr << "error reading file: " << e.what() << endl;
+        cerr << "error reading file " << e.what() << endl;
         return 1;
     }
 
@@ -56,6 +63,6 @@ int main(void){
         additional_constraints.push_back(constraint);
     }
 
-
+    //make_json();
     return 0;
 }
