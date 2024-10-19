@@ -4,6 +4,14 @@
 #include <string.h>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
+#include <CGAL/Delaunay_triangulation_2.h>
+#include <CGAL/point_generators_2.h>
+
+typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef K::Point_2 Point;
+typedef CGAL::Delaunay_triangulation_2<K> Delaunay;
+typedef Delaunay::Edge_iterator Edge_iterator;
 
 #define BUFFER 1024
 
@@ -61,7 +69,19 @@ int make_json(){
     return 0;
 }
 
+int delaunay_function(vector<Point> points){
+    Delaunay delaunay;
+    delaunay.insert(points.begin(), points.end());
 
+    for (Edge_iterator ei = delaunay.edges_begin(); ei != delaunay.edges_end(); ++ei) {
+        Delaunay::Segment segment = delaunay.segment(*ei);
+        //cout << segment << endl;
+    }
+
+    cout << points[0] << endl;
+
+    return 0;
+}
 
 
 int main(void){
@@ -109,6 +129,13 @@ int main(void){
         }
         additional_constraints.push_back(constraint);
     }
+
+    vector<Point> points;
+    for (int i = 0; i < num_points; ++i) {
+        points.push_back(Point(points_x[i], points_y[i]));
+    }
+
+    delaunay_function(points);
 
     //make_json();
     return 0;
