@@ -11,7 +11,55 @@ using namespace std;
 using namespace boost::property_tree;
 
 int make_json(){
- return 0;
+    ptree jsonData;
+
+    jsonData.put("content_type", "CG_SHOP_2025_Solution");
+
+    jsonData.put("instance_uid", "unique_instance_id");
+
+    ptree steiner_points_x;
+    steiner_points_x.push_back(make_pair("", ptree(std::to_string(123))));  // Ακέραια τιμή ως string
+    steiner_points_x.push_back(make_pair("", ptree(std::to_string(789))));  // Ακέραια τιμή ως string
+    steiner_points_x.push_back(make_pair("", ptree(std::to_string(1011)))); // Ακέραια τιμή ως string
+
+    jsonData.add_child("steiner_points_x", steiner_points_x);
+
+    // Προσθήκη των steiner_points_y
+    ptree steiner_points_y;
+    steiner_points_y.push_back(make_pair("", ptree(std::to_string(314))));  // Ακέραια τιμή ως string
+    steiner_points_y.push_back(make_pair("", ptree(std::to_string(265))));  // Ακέραια τιμή ως string
+    steiner_points_y.push_back(make_pair("", ptree(std::to_string(358))));  // Ακέραια τιμή ως string
+
+    jsonData.add_child("steiner_points_y", steiner_points_y);
+
+    // Προσθήκη των edges (λίστα ακέραιων τιμών)
+    ptree edges;
+    ptree edge1, edge2, edge3;
+
+    edge1.push_back(make_pair("", ptree(std::to_string(0))));  // Ακέραιες τιμές ως string
+    edge1.push_back(make_pair("", ptree(std::to_string(7))));
+
+    edge2.push_back(make_pair("", ptree(std::to_string(7))));
+    edge2.push_back(make_pair("", ptree(std::to_string(8))));
+
+    edge3.push_back(make_pair("", ptree(std::to_string(8))));
+    edge3.push_back(make_pair("", ptree(std::to_string(9))));
+
+    edges.push_back(make_pair("", edge1));
+    edges.push_back(make_pair("", edge2));
+    edges.push_back(make_pair("", edge3));
+
+    jsonData.add_child("edges", edges);
+
+    try {
+        write_json("output.json", jsonData);
+        cout << "output.json created successfully" << endl;
+    } catch (const json_parser_error &e) {
+        cerr << "couldn't create JSON: " << e.what() << endl;
+        return 1;
+    }
+
+    return 0;
 }
 
 
@@ -63,6 +111,6 @@ int main(void){
         additional_constraints.push_back(constraint);
     }
 
-    //make_json();
+    make_json();
     return 0;
 }
