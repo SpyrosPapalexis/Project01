@@ -5,13 +5,16 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
-#include <CGAL/Delaunay_triangulation_2.h>
+#include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/point_generators_2.h>
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
+typedef CGAL::Triangulation_vertex_base_2<K> Vb;
+typedef CGAL::Constrained_triangulation_face_base_2<K> Fb;
+typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
+typedef CGAL::Exact_intersections_tag Itag;
+typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag> CDT;
 typedef K::Point_2 Point;
-typedef CGAL::Delaunay_triangulation_2<K> Delaunay;
-typedef Delaunay::Edge_iterator Edge_iterator;
 
 #define BUFFER 1024
 
@@ -69,16 +72,20 @@ int make_json(){
     return 0;
 }
 
-int delaunay_function(vector<Point> points){
-    Delaunay delaunay;
-    delaunay.insert(points.begin(), points.end());
-
-    for (Edge_iterator ei = delaunay.edges_begin(); ei != delaunay.edges_end(); ++ei) {
-        Delaunay::Segment segment = delaunay.segment(*ei);
-        //cout << segment << endl;
+int constrained_delaunay_function(vector<Point> points, int num_constraints, vector<vector<int>> additional_constraints){
+    CDT cdt;
+    for (const auto& pt : points) {
+        cdt.insert(pt);
     }
 
-    cout << points[0] << endl;
+    for (int i = 0; i<num_constraints ; i++){
+        cdt.insert_constraint(additional_constraints[i][0], additional_constraints[i][1]);
+    }
+
+    for (auto edge = cdt.edges_begin(); edge != cdt.edges_end(); ++edge) {
+        CDT::Segment segment = cdt.segment(*edge);
+        std::cout << segment << std::endl;
+    }
 
     return 0;
 }
@@ -135,7 +142,7 @@ int main(void){
         points.push_back(Point(points_x[i], points_y[i]));
     }
 
-    delaunay_function(points);
+    constrained_delaunay_function(points, num_constraints, additional_constraints);
 
     //make_json();
     return 0;
