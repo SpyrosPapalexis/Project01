@@ -74,15 +74,17 @@ int make_json(){
 
 int constrained_delaunay_function(vector<Point> points, int num_constraints, vector<vector<int>> additional_constraints){
     CDT cdt;
-    for (const auto& pt : points) {
+    for (const auto& pt : points){
         cdt.insert(pt);
     }
 
-    for (int i = 0; i<num_constraints ; i++){
-        cdt.insert_constraint(additional_constraints[i][0], additional_constraints[i][1]);
+    for (const auto& constraint : additional_constraints){
+        int x = constraint[0];
+        int y = constraint[1];
+        cdt.insert_constraint(points[x], points[y]);
     }
 
-    for (auto edge = cdt.edges_begin(); edge != cdt.edges_end(); ++edge) {
+    for (auto edge = cdt.edges_begin(); edge != cdt.edges_end(); ++edge){
         CDT::Segment segment = cdt.segment(*edge);
         std::cout << segment << std::endl;
     }
@@ -102,7 +104,7 @@ int main(void){
     ptree jsonData;
     try {
         read_json(filename, jsonData);
-    } catch (const json_parser_error &e) {
+    } catch (const json_parser_error &e){
         cerr << "error reading file " << e.what() << endl;
         return 1;
     }
@@ -112,24 +114,24 @@ int main(void){
     int num_points = jsonData.get<int>("num_points");
 
     vector<int> points_x;
-    for (auto& item : jsonData.get_child("points_x")) {
+    for (auto& item : jsonData.get_child("points_x")){
         points_x.push_back(item.second.get_value<int>());
     }
 
     vector<int> points_y;
-    for (auto& item : jsonData.get_child("points_y")) {
+    for (auto& item : jsonData.get_child("points_y")){
         points_y.push_back(item.second.get_value<int>());
     }
 
     vector<int> region_boundary;
-    for (auto& item : jsonData.get_child("region_boundary")) {
+    for (auto& item : jsonData.get_child("region_boundary")){
         region_boundary.push_back(item.second.get_value<int>());
     }
 
     int num_constraints = jsonData.get<int>("num_constraints");
 
     vector<vector<int>> additional_constraints;
-    for (auto& item : jsonData.get_child("additional_constraints")) {
+    for (auto& item : jsonData.get_child("additional_constraints")){
         vector<int> constraint;
         for (auto& sub_item : item.second) {
             constraint.push_back(sub_item.second.get_value<int>());
@@ -138,7 +140,7 @@ int main(void){
     }
 
     vector<Point> points;
-    for (int i = 0; i < num_points; ++i) {
+    for (int i = 0; i < num_points; ++i){
         points.push_back(Point(points_x[i], points_y[i]));
     }
 
