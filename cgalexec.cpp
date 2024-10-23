@@ -22,8 +22,30 @@ typedef K::Point_2 Point;
 using namespace std;
 using namespace boost::property_tree;
 
+int fix_json() {
+    string filename = "output.json";
+    
+    ifstream inputFile(filename);
 
+    string fileContent((std::istreambuf_iterator<char>(inputFile)), std::istreambuf_iterator<char>());
+    inputFile.close();
 
+    std::string toReplace = "\\/";
+    std::string replaceWith = "/";
+    size_t pos = 0;
+    
+    while ((pos = fileContent.find(toReplace, pos)) != std::string::npos) {
+        fileContent.replace(pos, toReplace.length(), replaceWith);
+        pos += replaceWith.length();
+    }
+
+    std::ofstream outputFile(filename);
+
+    outputFile << fileContent;
+    outputFile.close();
+
+    return 0;
+}
 
 int make_json(){
     string content_type = "CG_SHOP_2025_Solution";
@@ -72,6 +94,8 @@ int make_json(){
         cerr << "errot at creating JSON file: " << e.what() << endl;
         return 1;
     }
+
+    fix_json();
 
     return 0;
 }
@@ -238,6 +262,6 @@ int main(void){
     cout << "Obtuse triangle count after edge flip is: " << obtuse_triangle_count << endl;
 
 
-    //make_json();
+    make_json();
     return 0;
 }
