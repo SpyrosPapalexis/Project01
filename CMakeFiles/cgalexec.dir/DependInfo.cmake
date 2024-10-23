@@ -1,10 +1,5 @@
-
-# Consider dependencies only in project.
-set(CMAKE_DEPENDS_IN_PROJECT_ONLY OFF)
-
 # The set of languages for which implicit dependencies are needed:
 set(CMAKE_DEPENDS_LANGUAGES
-<<<<<<< HEAD
   "CXX"
   )
 # The set of files for implicit dependencies of each language:
@@ -39,17 +34,6 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
 # Targets to which this target links.
 set(CMAKE_TARGET_LINKED_INFO_FILES
   "/home/monke/Project01/CMakeFiles/CGAL_Qt5_moc_and_resources.dir/DependInfo.cmake"
-=======
-  )
-
-# The set of dependency files which are needed:
-set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/home/sdi2000260/Project01/cgalexec.cpp" "CMakeFiles/cgalexec.dir/cgalexec.cpp.o" "gcc" "CMakeFiles/cgalexec.dir/cgalexec.cpp.o.d"
-  )
-
-# Targets to which this target links which contain Fortran sources.
-set(CMAKE_Fortran_TARGET_LINKED_INFO_FILES
->>>>>>> b5c35bb229a41b258ad1511cdc618b4d3bd94cef
   )
 
 # Fortran module output directory.

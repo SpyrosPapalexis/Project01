@@ -249,7 +249,7 @@ int main(void){
 
     CDT cdt = constrained_delaunay_function(points, num_constraints, additional_constraints);
 
-    CGAL::draw(cdt);
+    //CGAL::draw(cdt);
 
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
@@ -262,6 +262,6 @@ int main(void){
     cout << "Obtuse triangle count after edge flip is: " << obtuse_triangle_count << endl;
 
 
-    make_json();
+    //make_json();
     return 0;
 }
