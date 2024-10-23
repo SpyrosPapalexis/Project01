@@ -109,22 +109,12 @@ CDT constrained_delaunay_function(vector<Point> points, int num_constraints, vec
     }
 
     for (const auto& constraint : additional_constraints){
-        int x = constraint[0];
-        int y = constraint[1];
-        cdt.insert_constraint(points[x], points[y]);
+        int a = constraint[0];
+        int b = constraint[1];
+        cdt.insert_constraint(points[a], points[b]);
     }
 
     return cdt;
-}
-
-
-
-double angle_between_vectors(const K::Vector_2& v1, const K::Vector_2& v2){
-    double dot_product = v1 * v2;
-    double length1 = sqrt(v1.squared_length());
-    double length2 = sqrt(v2.squared_length());
-    double angle = acos(dot_product / (length1 * length2)) * (180.0 / M_PI);
-    return angle;
 }
 
 
@@ -134,11 +124,11 @@ bool is_obtuse_triangle(const Point& p1, const Point& p2, const Point& p3){
     K::Vector_2 v2 = p3 - p1;
     K::Vector_2 v3 = p3 - p2;
 
-    double angle1 = angle_between_vectors(v1, v2);
-    double angle2 = angle_between_vectors(-v1, v3);
-    double angle3 = angle_between_vectors(v2, -v3);
+    double dot1 = v1 * v2;
+    double dot2 = -v1 * v3;
+    double dot3 = v2 * -v3;
 
-    return (angle1 > 90.0 || angle2 > 90.0 || angle3 > 90.0);
+    return (dot1 < 0 || dot2 < 0 || dot3 < 0);
 }
 
 
@@ -164,35 +154,35 @@ int count_obtuse_triangles(const CDT& cdt){
 
 
 
-void flip_edge(CDT& cdt, CDT::Edge& edge) {
-    CDT::Face_handle face = edge.first;
-    int index = edge.second;
+pair<Point, Point> find_longest_edge(const CDT& cdt){
+    pair<Point, Point> longest_edge;
+    double max_distance = 0;
 
-    Point p1 = face->vertex((index + 1) % 3)->point();
-    Point p2 = face->vertex((index + 2) % 3)->point();
-    Point p3 = face->vertex(index)->point();
+    for (auto edge = cdt.finite_edges_begin(); edge != cdt.finite_edges_end(); ++edge){
+        Point p1 = cdt.segment(*edge).source();
+        Point p2 = cdt.segment(*edge).target();
 
-    if (is_obtuse_triangle(p1, p2, p3)) {
-        cdt.flip(face, index);
-    }
-}
+        double distance = CGAL::squared_distance(p1, p2);
 
-void optimize_triangulation(CDT& cdt) {
-    for (auto it = cdt.finite_edges_begin(); it != cdt.finite_edges_end(); ++it) {
-        CDT::Edge edge = *it;
-
-        CDT::Face_handle face = edge.first;
-        
-        Point p1 = face->vertex(0)->point();
-        Point p2 = face->vertex(1)->point();
-        Point p3 = face->vertex(2)->point();
-
-        if (is_obtuse_triangle(p1, p2, p3)) {
-            flip_edge(cdt, edge);
+        if (distance > max_distance) {
+            max_distance = distance;
+            longest_edge = make_pair(p1, p2);
         }
     }
+
+    return longest_edge;
 }
 
+
+
+void steiner_at_midpoint (CDT& cdt){
+    pair<Point, Point> edge = find_longest_edge(cdt);
+
+    Point p1 = edge.first;
+    Point p2 = edge.second;
+
+    cdt.insert(CGAL::midpoint(p1,p2));
+}
 
 
 
@@ -226,6 +216,11 @@ int main(void){
         points_y.push_back(item.second.get_value<int>());
     }
 
+    vector<Point> points;
+    for (int i = 0; i < num_points; ++i){
+        points.push_back(Point(points_x[i], points_y[i]));
+    }
+
     vector<int> region_boundary;
     for (auto& item : jsonData.get_child("region_boundary")){
         region_boundary.push_back(item.second.get_value<int>());
@@ -242,25 +237,19 @@ int main(void){
         additional_constraints.push_back(constraint);
     }
 
-    vector<Point> points;
-    for (int i = 0; i < num_points; ++i){
-        points.push_back(Point(points_x[i], points_y[i]));
-    }
-
     CDT cdt = constrained_delaunay_function(points, num_constraints, additional_constraints);
 
-    //CGAL::draw(cdt);
-
+    CGAL::draw(cdt);
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
+    
+    for (int i = 0; i <5; i++){
+        steiner_at_midpoint(cdt);
+    }
+    CGAL::draw(cdt);
     obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
-
-    optimize_triangulation(cdt);
-    obtuse_triangle_count = count_obtuse_triangles(cdt);
-    cout << "Obtuse triangle count after edge flip is: " << obtuse_triangle_count << endl;
-
 
     //make_json();
     return 0;
