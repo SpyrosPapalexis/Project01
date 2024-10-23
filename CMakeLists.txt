@@ -3,11 +3,11 @@
 
 cmake_minimum_required(VERSION 3.1...3.23)
 
-project( cgalexec )
+project(cgalexec)
 
 
 # CGAL and its components
-find_package( CGAL QUIET COMPONENTS  )
+find_package(CGAL QUIET COMPONENTS Qt5)
 
 if ( NOT CGAL_FOUND )
 
@@ -43,3 +43,7 @@ add_to_cached_list( CGAL_EXECUTABLE_TARGETS cgalexec )
 # Link the executable to CGAL and third-party libraries
 target_link_libraries(cgalexec PRIVATE CGAL::CGAL )
 
+if (CGAL_Qt5_FOUND)
+  add_definitions(-DCGAL_USE_BASIC_VIEWER)
+  target_link_libraries(cgalexec PRIVATE CGAL::CGAL_Qt5)
+endif()

@@ -79,9 +79,14 @@ cgalexec_EXTERNAL_OBJECTS =
 
 cgalexec: CMakeFiles/cgalexec.dir/cgalexec.cpp.o
 cgalexec: CMakeFiles/cgalexec.dir/build.make
+cgalexec: libCGAL_Qt5_moc_and_resources.a
 cgalexec: /usr/lib/x86_64-linux-gnu/libgmpxx.so
 cgalexec: /usr/lib/x86_64-linux-gnu/libmpfr.so
 cgalexec: /usr/lib/x86_64-linux-gnu/libgmp.so
+cgalexec: /usr/lib/x86_64-linux-gnu/libQt5OpenGL.so.5.12.8
+cgalexec: /usr/lib/x86_64-linux-gnu/libQt5Widgets.so.5.12.8
+cgalexec: /usr/lib/x86_64-linux-gnu/libQt5Gui.so.5.12.8
+cgalexec: /usr/lib/x86_64-linux-gnu/libQt5Core.so.5.12.8
 cgalexec: CMakeFiles/cgalexec.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/monke/Project01/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX executable cgalexec"
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/cgalexec.dir/link.txt --verbose=$(VERBOSE)

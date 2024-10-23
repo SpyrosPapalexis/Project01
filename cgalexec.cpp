@@ -6,6 +6,7 @@
 #include <boost/property_tree/json_parser.hpp>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
+#include <CGAL/draw_triangulation_2.h>
 #include <CGAL/point_generators_2.h>
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
@@ -20,6 +21,9 @@ typedef K::Point_2 Point;
 
 using namespace std;
 using namespace boost::property_tree;
+
+
+
 
 int make_json(){
     string content_type = "CG_SHOP_2025_Solution";
@@ -37,7 +41,7 @@ int make_json(){
     jsonData.put("instance_uid", instance_uid);
 
     ptree pt_steiner_points_x;
-    for (const auto& point : steiner_points_x) {
+    for (const auto& point : steiner_points_x){
         ptree temp_ptree;
         temp_ptree.put("", point);
         pt_steiner_points_x.push_back(make_pair("", temp_ptree));
@@ -45,7 +49,7 @@ int make_json(){
     jsonData.add_child("steiner_points_x", pt_steiner_points_x);
 
     ptree pt_steiner_points_y;
-    for (const auto& point : steiner_points_y) {
+    for (const auto& point : steiner_points_y){
         ptree temp_ptree;
         temp_ptree.put("", point);
         pt_steiner_points_y.push_back(make_pair("", temp_ptree));
@@ -53,7 +57,7 @@ int make_json(){
     jsonData.add_child("steiner_points_y", pt_steiner_points_y);
 
     ptree pt_edges;
-    for (const auto& edge : edges) {
+    for (const auto& edge : edges){
         ptree pt_edge;
         pt_edge.push_back(make_pair("", ptree(to_string(edge.first))));
         pt_edge.push_back(make_pair("", ptree(to_string(edge.second))));
@@ -61,10 +65,10 @@ int make_json(){
     }
     jsonData.add_child("edges", pt_edges);
 
-    try {
+    try{
         write_json("output.json", jsonData);
         cout << "output.json created successfully" << endl;
-    } catch (const json_parser_error &e) {
+    }catch (const json_parser_error &e) {
         cerr << "errot at creating JSON file: " << e.what() << endl;
         return 1;
     }
@@ -72,7 +76,9 @@ int make_json(){
     return 0;
 }
 
-int constrained_delaunay_function(vector<Point> points, int num_constraints, vector<vector<int>> additional_constraints){
+
+
+CDT constrained_delaunay_function(vector<Point> points, int num_constraints, vector<vector<int>> additional_constraints){
     CDT cdt;
     for (const auto& pt : points){
         cdt.insert(pt);
@@ -84,13 +90,86 @@ int constrained_delaunay_function(vector<Point> points, int num_constraints, vec
         cdt.insert_constraint(points[x], points[y]);
     }
 
-    for (auto edge = cdt.edges_begin(); edge != cdt.edges_end(); ++edge){
-        CDT::Segment segment = cdt.segment(*edge);
-        std::cout << segment << std::endl;
+    return cdt;
+}
+
+
+
+double angle_between_vectors(const K::Vector_2& v1, const K::Vector_2& v2){
+    double dot_product = v1 * v2;
+    double length1 = sqrt(v1.squared_length());
+    double length2 = sqrt(v2.squared_length());
+    double angle = acos(dot_product / (length1 * length2)) * (180.0 / M_PI);
+    return angle;
+}
+
+
+
+bool is_obtuse_triangle(const Point& p1, const Point& p2, const Point& p3){
+    K::Vector_2 v1 = p2 - p1;
+    K::Vector_2 v2 = p3 - p1;
+    K::Vector_2 v3 = p3 - p2;
+
+    double angle1 = angle_between_vectors(v1, v2);
+    double angle2 = angle_between_vectors(-v1, v3);
+    double angle3 = angle_between_vectors(v2, -v3);
+
+    return (angle1 > 90.0 || angle2 > 90.0 || angle3 > 90.0);
+}
+
+
+
+int count_obtuse_triangles(const CDT& cdt){
+    int obtuse_triangle_count = 0;
+    int triangle_count = 0;
+
+    for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face){
+        Point p1 = face->vertex(0)->point();
+        Point p2 = face->vertex(1)->point();
+        Point p3 = face->vertex(2)->point();
+
+        triangle_count++;
+        if (is_obtuse_triangle(p1, p2, p3)){
+            obtuse_triangle_count++;
+        }
     }
 
-    return 0;
+    cout << "total triangles: " << triangle_count << endl;
+    return obtuse_triangle_count;
 }
+
+
+
+void flip_edge(CDT& cdt, CDT::Edge& edge) {
+    CDT::Face_handle face = edge.first;
+    int index = edge.second;
+
+    Point p1 = face->vertex((index + 1) % 3)->point();
+    Point p2 = face->vertex((index + 2) % 3)->point();
+    Point p3 = face->vertex(index)->point();
+
+    if (is_obtuse_triangle(p1, p2, p3)) {
+        cdt.flip(face, index);
+    }
+}
+
+void optimize_triangulation(CDT& cdt) {
+    for (auto it = cdt.finite_edges_begin(); it != cdt.finite_edges_end(); ++it) {
+        CDT::Edge edge = *it;
+
+        CDT::Face_handle face = edge.first;
+        
+        Point p1 = face->vertex(0)->point();
+        Point p2 = face->vertex(1)->point();
+        Point p3 = face->vertex(2)->point();
+
+        if (is_obtuse_triangle(p1, p2, p3)) {
+            flip_edge(cdt, edge);
+        }
+    }
+}
+
+
 
 
 int main(void){
@@ -144,7 +223,20 @@ int main(void){
         points.push_back(Point(points_x[i], points_y[i]));
     }
 
-    constrained_delaunay_function(points, num_constraints, additional_constraints);
+    CDT cdt = constrained_delaunay_function(points, num_constraints, additional_constraints);
+
+    CGAL::draw(cdt);
+
+    int obtuse_triangle_count = count_obtuse_triangles(cdt);
+    cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+
+    obtuse_triangle_count = count_obtuse_triangles(cdt);
+    cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+
+    optimize_triangulation(cdt);
+    obtuse_triangle_count = count_obtuse_triangles(cdt);
+    cout << "Obtuse triangle count after edge flip is: " << obtuse_triangle_count << endl;
+
 
     //make_json();
     return 0;

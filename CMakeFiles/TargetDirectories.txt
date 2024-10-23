@@ -1,3 +1,5 @@
 /home/monke/Project01/CMakeFiles/rebuild_cache.dir
 /home/monke/Project01/CMakeFiles/edit_cache.dir
 /home/monke/Project01/CMakeFiles/cgalexec.dir
+/home/monke/Project01/CMakeFiles/CGAL_Qt5_moc_and_resources.dir
+/home/monke/Project01/CMakeFiles/CGAL_Qt5_moc_and_resources_autogen.dir
