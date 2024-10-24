@@ -47,7 +47,7 @@ int fix_json() {
     return 0;
 }
 
-int make_json(){
+int make_json(Point steiner_points){
     string content_type = "CG_SHOP_2025_Solution";
     string instance_uid = "unique_instance_id";
 
@@ -175,13 +175,15 @@ pair<Point, Point> find_longest_edge(const CDT& cdt){
 
 
 
-void steiner_at_midpoint (CDT& cdt){
+Point steiner_at_midpoint (CDT& cdt){
     pair<Point, Point> edge = find_longest_edge(cdt);
 
     Point p1 = edge.first;
     Point p2 = edge.second;
 
-    cdt.insert(CGAL::midpoint(p1,p2));
+    Point steiner_point = CGAL::midpoint(p1,p2);
+    cdt.insert(steiner_point);
+    return steiner_point;
 }
 
 
@@ -243,14 +245,14 @@ int main(void){
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-    
+    vector<Point> steiner_points;
     for (int i = 0; i <5; i++){
-        steiner_at_midpoint(cdt);
+        steiner_points.push_back(steiner_at_midpoint(cdt));
     }
     CGAL::draw(cdt);
     obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-    //make_json();
+    //make_json(steiner_points);
     return 0;
 }
