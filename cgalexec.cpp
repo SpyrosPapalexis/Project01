@@ -23,21 +23,21 @@ typedef CDT::Face_handle Face_handle;
 using namespace std;
 using namespace boost::property_tree;
 
-int fix_json() {
+int replace_json(string oldText, string newText) {
+    int result = 1;
     string filename = "output.json";
     
     ifstream inputFile(filename);
 
-    string fileContent((std::istreambuf_iterator<char>(inputFile)), std::istreambuf_iterator<char>());
+    string fileContent((istreambuf_iterator<char>(inputFile)), istreambuf_iterator<char>());
     inputFile.close();
 
-    std::string toReplace = "\\/";
-    std::string replaceWith = "/";
     size_t pos = 0;
     
-    while ((pos = fileContent.find(toReplace, pos)) != std::string::npos) {
-        fileContent.replace(pos, toReplace.length(), replaceWith);
-        pos += replaceWith.length();
+    while ((pos = fileContent.find(oldText, pos)) != string::npos) {
+        fileContent.replace(pos, oldText.length(), newText);
+        pos += newText.length();
+        result = 0;
     }
 
     std::ofstream outputFile(filename);
@@ -45,17 +45,14 @@ int fix_json() {
     outputFile << fileContent;
     outputFile.close();
 
-    return 0;
+    return result;
 }
 
-int make_json(Point steiner_points){
+int make_json(vector<Point> steiner_points){
     string content_type = "CG_SHOP_2025_Solution";
     string instance_uid = "unique_instance_id";
 
-    std::vector<string> steiner_points_x = {"123/456", "789", "1011/1213"};
-    std::vector<string> steiner_points_y = {"314/159", "265", "358/979"};
-
-    std::vector<std::pair<int, int>> edges = {{0, 7}, {7, 8}, {8, 9}};
+    vector<pair<int, int>> edges = {{0, 7}, {7, 8}, {8, 9}};
 
     ptree jsonData;
 
@@ -64,17 +61,17 @@ int make_json(Point steiner_points){
     jsonData.put("instance_uid", instance_uid);
 
     ptree pt_steiner_points_x;
-    for (const auto& point : steiner_points_x){
+    for (const auto& point : steiner_points){
         ptree temp_ptree;
-        temp_ptree.put("", point);
+        temp_ptree.put("", point[0]);
         pt_steiner_points_x.push_back(make_pair("", temp_ptree));
     }
     jsonData.add_child("steiner_points_x", pt_steiner_points_x);
 
     ptree pt_steiner_points_y;
-    for (const auto& point : steiner_points_y){
+    for (const auto& point : steiner_points){
         ptree temp_ptree;
-        temp_ptree.put("", point);
+        temp_ptree.put("", point[1]);
         pt_steiner_points_y.push_back(make_pair("", temp_ptree));
     }
     jsonData.add_child("steiner_points_y", pt_steiner_points_y);
@@ -96,7 +93,7 @@ int make_json(Point steiner_points){
         return 1;
     }
 
-    fix_json();
+    //replace_json("\\/", "/");
 
     return 0;
 }
@@ -282,16 +279,27 @@ int main(void){
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
     vector<Point> steiner_points;
+
+    int method;
+    cout << "Enter method number (1,2,3)" << endl;
+    cin >> method;
+
     for (int i = 0; i <10; i++){
-        // Point steiner_point = steiner_at_midpoint(cdt);
-        Point steiner_point = steiner_at_circumcenter(cdt);
-        // Point steiner_point = steiner_at_3(cdt);
+        Point steiner_point;
+        if (method == 1) steiner_point = steiner_at_midpoint(cdt);
+        else if (method == 2) steiner_point = steiner_at_circumcenter(cdt);
+        else if (method == 3); // Point steiner_point = steiner_at_3(cdt);
+        else {
+            cout << "Wrong method imput." << endl;
+            return 2;
+        }
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) steiner_points.push_back(steiner_point);
     }
     CGAL::draw(cdt);
     obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-    //make_json(steiner_points);
+    make_json(steiner_points);
+
     return 0;
 }
