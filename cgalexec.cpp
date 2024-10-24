@@ -16,6 +16,7 @@ typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
 typedef CGAL::Exact_intersections_tag Itag;
 typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag> CDT;
 typedef K::Point_2 Point;
+typedef CDT::Face_handle Face_handle;
 
 #define BUFFER 1024
 
@@ -175,6 +176,22 @@ pair<Point, Point> find_longest_edge(const CDT& cdt){
 
 
 
+Face_handle find_obtuse_triangle(CDT& cdt){
+    for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
+        Point p1 = face->vertex(0)->point();
+        Point p2 = face->vertex(1)->point();
+        Point p3 = face->vertex(2)->point();
+
+        if (is_obtuse_triangle(p1, p2, p3)) {
+            return face;
+        }
+    }
+
+    return nullptr;
+}
+
+
+
 Point steiner_at_midpoint (CDT& cdt){
     pair<Point, Point> edge = find_longest_edge(cdt);
 
@@ -182,6 +199,25 @@ Point steiner_at_midpoint (CDT& cdt){
     Point p2 = edge.second;
 
     Point steiner_point = CGAL::midpoint(p1,p2);
+    cdt.insert(steiner_point);
+    return steiner_point;
+}
+
+
+
+
+Point steiner_at_circumcenter(CDT& cdt){
+    Face_handle triangle = find_obtuse_triangle(cdt);
+    if (triangle == nullptr){
+        return Point(nan(""), nan(""));
+    }
+
+    Point p1 = triangle->vertex(0)->point();
+    Point p2 = triangle->vertex(1)->point();
+    Point p3 = triangle->vertex(2)->point();
+
+    Point steiner_point = CGAL::circumcenter(p1, p2, p3);
+
     cdt.insert(steiner_point);
     return steiner_point;
 }
@@ -246,8 +282,11 @@ int main(void){
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
     vector<Point> steiner_points;
-    for (int i = 0; i <5; i++){
-        steiner_points.push_back(steiner_at_midpoint(cdt));
+    for (int i = 0; i <10; i++){
+        // Point steiner_point = steiner_at_midpoint(cdt);
+        Point steiner_point = steiner_at_circumcenter(cdt);
+        // Point steiner_point = steiner_at_3(cdt);
+        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) steiner_points.push_back(steiner_point);
     }
     CGAL::draw(cdt);
     obtuse_triangle_count = count_obtuse_triangles(cdt);
