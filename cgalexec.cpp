@@ -35,32 +35,6 @@ int find_point_index(const vector<Point>& points, const Point& target){
 }
 
 
-/*
-int replace_json(string oldText, string newText){
-    int result = 1;
-    string filename = "output.json";
-    
-    ifstream inputFile(filename);
-
-    string fileContent((istreambuf_iterator<char>(inputFile)), istreambuf_iterator<char>());
-    inputFile.close();
-
-    size_t pos = 0;
-    
-    while ((pos = fileContent.find(oldText, pos)) != string::npos){
-        fileContent.replace(pos, oldText.length(), newText);
-        pos += newText.length();
-        result = 0;
-    }
-
-    std::ofstream outputFile(filename);
-
-    outputFile << fileContent;
-    outputFile.close();
-
-    return result;
-}
-*/
 
 int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments){
     std::string content_type = "CG_SHOP_2025_Solution";
@@ -159,16 +133,14 @@ vector<Segment> get_segments(const CDT& cdt){
 
 
 
-bool is_obtuse_triangle(const Point& p1, const Point& p2, const Point& p3){
-    K::Vector_2 v1 = p2 - p1;
-    K::Vector_2 v2 = p3 - p1;
-    K::Vector_2 v3 = p3 - p2;
+bool is_obtuse_triangle(const Point& a, const Point& b, const Point& c){
+    double ab = CGAL::squared_distance(a, b);
+    double bc = CGAL::squared_distance(b, c);
+    double ca = CGAL::squared_distance(c, a);
 
-    double dot1 = v1 * v2;
-    double dot2 = -v1 * v3;
-    double dot3 = v2 * -v3;
+    if ((ab > bc + ca) || (bc > ab + ca) || (ca > ab + bc)) return true;
 
-    return (dot1 < 0 || dot2 < 0 || dot3 < 0);
+    return false;
 }
 
 
@@ -237,11 +209,11 @@ Point steiner_at_midpoint(CDT& cdt){
     Point p1 = edge.first;
     Point p2 = edge.second;
 
-    Point steiner_point = CGAL::midpoint(p1,p2);
+    Point steiner_point = CGAL::midpoint(p1, p2);
+    
     cdt.insert(steiner_point);
     return steiner_point;
 }
-
 
 
 
@@ -283,7 +255,7 @@ std::ifstream file(filename);
         jsonData = parse(jsonStr);
     } catch (const std::exception &e) {
         cerr << "error reading file " << e.what() << endl;
-        return 1;
+        return 2;
     }
 
     object& obj = jsonData.as_object();
@@ -328,7 +300,6 @@ std::ifstream file(filename);
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-
     int method;
     cout << "Enter method number (1,2,3)" << endl;
     cin >> method;
@@ -340,7 +311,7 @@ std::ifstream file(filename);
         else if (method == 3); // Point steiner_point = steiner_at_3(cdt);
         else {
             cout << "Wrong method imput." << endl;
-            return 2;
+            return 3;
         }
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
         else break;
