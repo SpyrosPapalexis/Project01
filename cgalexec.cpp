@@ -16,14 +16,27 @@ typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
 typedef CGAL::Exact_intersections_tag Itag;
 typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag> CDT;
 typedef K::Point_2 Point;
+typedef K::Segment_2 Segment;
 typedef CDT::Face_handle Face_handle;
+typedef CDT::Edge_iterator Edge_iterator;
 
 #define BUFFER 1024
 
 using namespace std;
 using namespace boost::property_tree;
 
-int replace_json(string oldText, string newText) {
+
+int find_point_index(const vector<Point>& points, const Point& target){
+    auto it = find(points.begin(), points.end(), target);
+    if (it != points.end()){
+        return distance(points.begin(), it);
+    }
+    return -1;
+}
+
+
+
+int replace_json(string oldText, string newText){
     int result = 1;
     string filename = "output.json";
     
@@ -34,7 +47,7 @@ int replace_json(string oldText, string newText) {
 
     size_t pos = 0;
     
-    while ((pos = fileContent.find(oldText, pos)) != string::npos) {
+    while ((pos = fileContent.find(oldText, pos)) != string::npos){
         fileContent.replace(pos, oldText.length(), newText);
         pos += newText.length();
         result = 0;
@@ -48,11 +61,8 @@ int replace_json(string oldText, string newText) {
     return result;
 }
 
-int make_json(vector<Point> steiner_points){
+int make_json(string instance_uid, int num_points, vector<Point> points, vector<Segment> segments){
     string content_type = "CG_SHOP_2025_Solution";
-    string instance_uid = "unique_instance_id";
-
-    vector<pair<int, int>> edges = {{0, 7}, {7, 8}, {8, 9}};
 
     ptree jsonData;
 
@@ -61,27 +71,32 @@ int make_json(vector<Point> steiner_points){
     jsonData.put("instance_uid", instance_uid);
 
     ptree pt_steiner_points_x;
-    for (const auto& point : steiner_points){
+    for (auto it = points.begin() + num_points; it != points.end(); ++it){
         ptree temp_ptree;
-        temp_ptree.put("", point[0]);
-        pt_steiner_points_x.push_back(make_pair("", temp_ptree));
+        temp_ptree.put("", (*it)[0]);
+        pt_steiner_points_x.push_back(std::make_pair("", temp_ptree));
     }
     jsonData.add_child("steiner_points_x", pt_steiner_points_x);
 
     ptree pt_steiner_points_y;
-    for (const auto& point : steiner_points){
+    for (auto it = points.begin() + num_points; it != points.end(); ++it){
         ptree temp_ptree;
-        temp_ptree.put("", point[1]);
-        pt_steiner_points_y.push_back(make_pair("", temp_ptree));
+        temp_ptree.put("", (*it)[1]);
+        pt_steiner_points_x.push_back(std::make_pair("", temp_ptree));
     }
     jsonData.add_child("steiner_points_y", pt_steiner_points_y);
 
     ptree pt_edges;
-    for (const auto& edge : edges){
-        ptree pt_edge;
-        pt_edge.push_back(make_pair("", ptree(to_string(edge.first))));
-        pt_edge.push_back(make_pair("", ptree(to_string(edge.second))));
-        pt_edges.push_back(make_pair("", pt_edge));
+    for (const auto& segment : segments){
+        int index1 = find_point_index(points, segment.source());
+        int index2 = find_point_index(points, segment.target());
+
+        if (index1 != -1 && index2 != -1) {
+            ptree pt_edge;
+            pt_edge.push_back(make_pair("", ptree(to_string(index1))));
+            pt_edge.push_back(make_pair("", ptree(to_string(index2))));
+            pt_edges.push_back(make_pair("", pt_edge));
+        }
     }
     jsonData.add_child("edges", pt_edges);
 
@@ -113,6 +128,16 @@ CDT constrained_delaunay_function(vector<Point> points, int num_constraints, vec
     }
 
     return cdt;
+}
+
+
+
+vector<Segment> get_segments(const CDT& cdt){
+    vector<Segment> segments;
+    for (Edge_iterator edge = cdt.finite_edges_begin(); edge != cdt.finite_edges_end(); ++edge){
+        segments.push_back(cdt.segment(*edge));
+    }
+    return segments;
 }
 
 
@@ -189,7 +214,7 @@ Face_handle find_obtuse_triangle(CDT& cdt){
 
 
 
-Point steiner_at_midpoint (CDT& cdt){
+Point steiner_at_midpoint(CDT& cdt){
     pair<Point, Point> edge = find_longest_edge(cdt);
 
     Point p1 = edge.first;
@@ -278,7 +303,6 @@ int main(void){
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-    vector<Point> steiner_points;
 
     int method;
     cout << "Enter method number (1,2,3)" << endl;
@@ -293,13 +317,16 @@ int main(void){
             cout << "Wrong method imput." << endl;
             return 2;
         }
-        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) steiner_points.push_back(steiner_point);
+        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
+        else break;
     }
     CGAL::draw(cdt);
     obtuse_triangle_count = count_obtuse_triangles(cdt);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
 
-    make_json(steiner_points);
+    vector<Segment> segments = get_segments(cdt);
+
+    make_json(instance_uid, num_points, points, segments);
 
     return 0;
 }
