@@ -1,9 +1,9 @@
 #include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
-#include <string.h>
-#include <boost/property_tree/ptree.hpp>
-#include <boost/property_tree/json_parser.hpp>
+#include <string>
+#include <boost/json.hpp>
+#include <boost/json/src.hpp>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/draw_triangulation_2.h>
@@ -23,7 +23,7 @@ typedef CDT::Edge_iterator Edge_iterator;
 #define BUFFER 1024
 
 using namespace std;
-using namespace boost::property_tree;
+using namespace boost::json;
 
 
 int find_point_index(const vector<Point>& points, const Point& target){
@@ -35,7 +35,7 @@ int find_point_index(const vector<Point>& points, const Point& target){
 }
 
 
-
+/*
 int replace_json(string oldText, string newText){
     int result = 1;
     string filename = "output.json";
@@ -60,55 +60,72 @@ int replace_json(string oldText, string newText){
 
     return result;
 }
+*/
 
-int make_json(string instance_uid, int num_points, vector<Point> points, vector<Segment> segments){
-    string content_type = "CG_SHOP_2025_Solution";
+int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments){
+    std::string content_type = "CG_SHOP_2025_Solution";
 
-    ptree jsonData;
+    std::stringstream ss;
+    ss << "{\n";
+    ss << "  \"content_type\": \"" << content_type << "\",\n";
+    ss << "  \"instance_uid\": \"" << instance_uid << "\",\n";
 
-    jsonData.put("content_type", content_type);
 
-    jsonData.put("instance_uid", instance_uid);
+    boost::json::array steiner_points_x;
+    for (auto it = points.begin() + num_points; it != points.end(); ++it) {
 
-    ptree pt_steiner_points_x;
-    for (auto it = points.begin() + num_points; it != points.end(); ++it){
-        ptree temp_ptree;
-        temp_ptree.put("", (*it)[0]);
-        pt_steiner_points_x.push_back(std::make_pair("", temp_ptree));
-    }
-    jsonData.add_child("steiner_points_x", pt_steiner_points_x);
-
-    ptree pt_steiner_points_y;
-    for (auto it = points.begin() + num_points; it != points.end(); ++it){
-        ptree temp_ptree;
-        temp_ptree.put("", (*it)[1]);
-        pt_steiner_points_x.push_back(std::make_pair("", temp_ptree));
-    }
-    jsonData.add_child("steiner_points_y", pt_steiner_points_y);
-
-    ptree pt_edges;
-    for (const auto& segment : segments){
-        int index1 = find_point_index(points, segment.source());
-        int index2 = find_point_index(points, segment.target());
-
-        if (index1 != -1 && index2 != -1) {
-            ptree pt_edge;
-            pt_edge.push_back(make_pair("", ptree(to_string(index1))));
-            pt_edge.push_back(make_pair("", ptree(to_string(index2))));
-            pt_edges.push_back(make_pair("", pt_edge));
+        if (it != points.end()) {
+            steiner_points_x.push_back(value((*it)[0]));
         }
     }
-    jsonData.add_child("edges", pt_edges);
+    
+    ss << "  \"steiner_points_x\": [";
+    for (size_t i = 0; i < steiner_points_x.size(); ++i) {
+        ss << steiner_points_x[i];
+        if (i < steiner_points_x.size() - 1) ss << ", ";
+    }
+    ss << "],\n";
+
+
+    boost::json::array steiner_points_y;
+    for (auto it = points.begin() + num_points; it != points.end(); ++it){
+
+        if (it != points.end()) {
+            steiner_points_y.push_back(value((*it)[1]));
+        }
+    }
+    
+    ss << "  \"steiner_points_y\": [";
+    for (size_t i = 0; i < steiner_points_y.size(); ++i){
+        ss << steiner_points_y[i];
+        if (i < steiner_points_y.size() - 1) ss << ", ";
+    }
+    ss << "],\n";
+
+
+    ss << "  \"edges\": [\n";
+    for (size_t i = 0; i < segments.size(); ++i){
+        int index1 = find_point_index(points, segments[i].source());
+        int index2 = find_point_index(points, segments[i].target());
+
+        if (index1 != -1 && index2 != -1) {
+            ss << "    [" << index1 << ", " << index2 << "]";
+            if (i < segments.size() - 1) ss << ",";
+            ss << "\n";
+        }
+    }
+    ss << "  ]\n";
+    ss << "}\n";
 
     try{
-        write_json("output.json", jsonData);
+        std::ofstream output_file("output.json");
+        output_file << ss.str();
+        output_file.close();
         cout << "output.json created successfully" << endl;
-    }catch (const json_parser_error &e) {
-        cerr << "errot at creating JSON file: " << e.what() << endl;
+    } catch (const std::exception &e) {
+        cerr << "error at creating JSON file: " << e.what() << endl;
         return 1;
     }
-
-    //replace_json("\\/", "/");
 
     return 0;
 }
@@ -248,51 +265,59 @@ Point steiner_at_circumcenter(CDT& cdt){
 
 int main(void){
 
-    char txtbuffer[BUFFER] = "";
     char filename[BUFFER] = "";
 
     cout << "Enter file name:" << endl;
     cin >> filename;
 
-    ptree jsonData;
+std::ifstream file(filename);
+    if (!file.is_open()) {
+        cerr << "Error opening file." << endl;
+        return 1;
+    }
+    std::string jsonStr((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    file.close();
+
+    value jsonData;
     try {
-        read_json(filename, jsonData);
-    } catch (const json_parser_error &e){
+        jsonData = parse(jsonStr);
+    } catch (const std::exception &e) {
         cerr << "error reading file " << e.what() << endl;
         return 1;
     }
 
-    string instance_uid = jsonData.get<string>("instance_uid");
+    object& obj = jsonData.as_object();
 
-    int num_points = jsonData.get<int>("num_points");
+    std::string instance_uid = obj["instance_uid"].as_string().c_str();
+    int num_points = obj["num_points"].as_int64();
 
     vector<int> points_x;
-    for (auto& item : jsonData.get_child("points_x")){
-        points_x.push_back(item.second.get_value<int>());
+    for (auto& item : obj["points_x"].as_array()) {
+        points_x.push_back(item.as_int64());
     }
 
     vector<int> points_y;
-    for (auto& item : jsonData.get_child("points_y")){
-        points_y.push_back(item.second.get_value<int>());
+    for (auto& item : obj["points_y"].as_array()) {
+        points_y.push_back(item.as_int64());
     }
 
     vector<Point> points;
-    for (int i = 0; i < num_points; ++i){
+    for (int i = 0; i < num_points; ++i) {
         points.push_back(Point(points_x[i], points_y[i]));
     }
 
     vector<int> region_boundary;
-    for (auto& item : jsonData.get_child("region_boundary")){
-        region_boundary.push_back(item.second.get_value<int>());
+    for (auto& item : obj["region_boundary"].as_array()) {
+        region_boundary.push_back(item.as_int64());
     }
 
-    int num_constraints = jsonData.get<int>("num_constraints");
+    int num_constraints = obj["num_constraints"].as_int64();
 
     vector<vector<int>> additional_constraints;
-    for (auto& item : jsonData.get_child("additional_constraints")){
+    for (auto& item : obj["additional_constraints"].as_array()) {
         vector<int> constraint;
-        for (auto& sub_item : item.second) {
-            constraint.push_back(sub_item.second.get_value<int>());
+        for (auto& sub_item : item.as_array()) {
+            constraint.push_back(sub_item.as_int64());
         }
         additional_constraints.push_back(constraint);
     }
