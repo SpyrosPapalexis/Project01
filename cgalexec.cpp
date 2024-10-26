@@ -8,6 +8,7 @@
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/draw_triangulation_2.h>
 #include <CGAL/point_generators_2.h>
+#include <CGAL/Polygon_2.h>
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
@@ -15,6 +16,8 @@ typedef CGAL::Constrained_triangulation_face_base_2<K> Fb;
 typedef CGAL::Triangulation_data_structure_2<Vb,Fb> TDS;
 typedef CGAL::Exact_intersections_tag Itag;
 typedef CGAL::Constrained_Delaunay_triangulation_2<K, TDS, Itag> CDT;
+typedef CGAL::Polygon_2<K> Polygon;
+typedef CGAL::Bounded_side Bounded_side;
 typedef K::Point_2 Point;
 typedef K::Segment_2 Segment;
 typedef CDT::Face_handle Face_handle;
@@ -106,9 +109,17 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
 
 
 
-CDT constrained_delaunay_function(vector<Point> points, int num_constraints, vector<vector<int>> additional_constraints){
+CDT constrained_delaunay_function(vector<Point> points, const vector<int> region_boundary, vector<vector<int>> additional_constraints, Polygon &polygon){
     CDT cdt;
-    for (const auto& pt : points){
+
+    for (size_t i = 0; i < region_boundary.size(); ++i) {
+        int a = region_boundary[i];
+        int b = region_boundary[(i + 1) % region_boundary.size()];
+        polygon.push_back(points[a]);
+        cdt.insert_constraint(points[a], points[b]);
+    }
+
+    for (const auto& pt : points) {
         cdt.insert(pt);
     }
 
@@ -166,7 +177,32 @@ int count_obtuse_triangles(const CDT& cdt){
 
 
 
-pair<Point, Point> find_longest_edge(const CDT& cdt){
+bool check_steiner_point(CDT& cdt, const Point& steiner_point, const Polygon polygon){
+    if (polygon.bounded_side(steiner_point) == CGAL::ON_BOUNDED_SIDE){
+        cout << "inside" << endl;
+        return true;
+    }
+    cout << "outside" << endl;
+    return false;
+}
+
+
+
+Face_handle find_obtuse_triangle(CDT& cdt){
+    for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face){
+        Point p1 = face->vertex(0)->point();
+        Point p2 = face->vertex(1)->point();
+        Point p3 = face->vertex(2)->point();
+
+        if (is_obtuse_triangle(p1, p2, p3)) return face;
+    }
+    cout << endl;
+    return nullptr;
+}
+
+
+
+Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
     pair<Point, Point> longest_edge;
     double max_distance = 0;
 
@@ -175,49 +211,25 @@ pair<Point, Point> find_longest_edge(const CDT& cdt){
         Point p2 = cdt.segment(*edge).target();
 
         double distance = CGAL::squared_distance(p1, p2);
-
-        if (distance > max_distance) {
+        if (distance > max_distance && check_steiner_point(cdt, midpoint(p1,p2), polygon)){
             max_distance = distance;
             longest_edge = make_pair(p1, p2);
         }
     }
 
-    return longest_edge;
-}
-
-
-
-Face_handle find_obtuse_triangle(CDT& cdt){
-    for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
-        Point p1 = face->vertex(0)->point();
-        Point p2 = face->vertex(1)->point();
-        Point p3 = face->vertex(2)->point();
-
-        if (is_obtuse_triangle(p1, p2, p3)) {
-            return face;
-        }
-    }
-
-    return nullptr;
-}
-
-
-
-Point steiner_at_midpoint(CDT& cdt){
-    pair<Point, Point> edge = find_longest_edge(cdt);
-
-    Point p1 = edge.first;
-    Point p2 = edge.second;
+    if (max_distance == 0) return Point(nan(""), nan(""));
+    Point p1 = longest_edge.first;
+    Point p2 = longest_edge.second;
 
     Point steiner_point = CGAL::midpoint(p1, p2);
-    
+
     cdt.insert(steiner_point);
     return steiner_point;
 }
 
 
 
-Point steiner_at_circumcenter(CDT& cdt){
+Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
     Face_handle triangle = find_obtuse_triangle(cdt);
     if (triangle == nullptr){
         return Point(nan(""), nan(""));
@@ -294,7 +306,8 @@ std::ifstream file(filename);
         additional_constraints.push_back(constraint);
     }
 
-    CDT cdt = constrained_delaunay_function(points, num_constraints, additional_constraints);
+    Polygon polygon;
+    CDT cdt = constrained_delaunay_function(points, region_boundary, additional_constraints, polygon);
 
     CGAL::draw(cdt);
     int obtuse_triangle_count = count_obtuse_triangles(cdt);
@@ -304,12 +317,16 @@ std::ifstream file(filename);
     cout << "Enter method number (1,2,3)" << endl;
     cin >> method;
 
-    for (int i = 0; i <10; i++){
+    int steiner_max;
+    cout << "Enter number of desired steiner points:" << endl;
+    cin >> steiner_max;
+
+    for (int i = 0; i < steiner_max; i++){
         Point steiner_point;
-        if (method == 1) steiner_point = steiner_at_midpoint(cdt);
-        else if (method == 2) steiner_point = steiner_at_circumcenter(cdt);
-        else if (method == 3); // Point steiner_point = steiner_at_3(cdt);
-        else {
+        if (method == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
+        else if (method == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
+        else if (method == 3); // Point steiner_point = steiner_at_3(cdt, polygon);
+        else{
             cout << "Wrong method imput." << endl;
             return 3;
         }
