@@ -22,6 +22,7 @@ typedef K::Point_2 Point;
 typedef K::Segment_2 Segment;
 typedef CDT::Face_handle Face_handle;
 typedef CDT::Edge_iterator Edge_iterator;
+typedef K::Line_2 Line;
 
 #define BUFFER 1024
 
@@ -145,13 +146,15 @@ vector<Segment> get_segments(const CDT& cdt){
 
 
 bool is_obtuse_triangle(const Point& a, const Point& b, const Point& c){
-    double ab = CGAL::squared_distance(a, b);
-    double bc = CGAL::squared_distance(b, c);
-    double ca = CGAL::squared_distance(c, a);
+    K::Vector_2 v1 = b - a;
+    K::Vector_2 v2 = c - a;
+    K::Vector_2 v3 = c - b;
 
-    if ((ab > bc + ca) || (bc > ab + ca) || (ca > ab + bc)) return true;
+    double dot1 = v1 * v2;
+    double dot2 = -v1 * v3;
+    double dot3 = v2 * v3;
 
-    return false;
+    return (dot1 < 0 || dot2 < 0 || dot3 < 0);
 }
 
 
@@ -247,6 +250,44 @@ Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
 
 
 
+Point steiner_at_projection(CDT& cdt){
+    Face_handle triangle = find_obtuse_triangle(cdt);
+    if (triangle == nullptr){
+        return Point(nan(""), nan(""));
+    }
+
+    Point a = triangle->vertex(0)->point();
+    Point b = triangle->vertex(1)->point();
+    Point c = triangle->vertex(2)->point();
+
+    K::Vector_2 v1 = b - a;
+    K::Vector_2 v2 = c - a;
+    K::Vector_2 v3 = c - b;
+
+    double dot1 = v1 * v2;
+    double dot2 = -v1 * v3;
+    double dot3 = v2 * v3;
+
+    Point steiner_point;
+    if (dot1 < 0){
+        Line line(b, c);
+        steiner_point = line.projection(a);
+    }
+    else if (dot2 < 0){
+        Line line(a, b);
+        steiner_point = line.projection(b);
+    }
+    else if (dot3 < 0){
+        Line line(a, c);
+        steiner_point = line.projection(c);
+    }
+
+    cdt.insert(steiner_point);
+    return steiner_point;
+}
+
+
+
 int main(void){
 
     char filename[BUFFER] = "";
@@ -325,11 +366,16 @@ std::ifstream file(filename);
         Point steiner_point;
         if (method == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
         else if (method == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
-        else if (method == 3); // Point steiner_point = steiner_at_3(cdt, polygon);
+        else if (method == 3) steiner_point = steiner_at_projection(cdt);
+        else if (method == 3); //steiner_point = steiner_at_3(cdt, polygon);
         else{
             cout << "Wrong method imput." << endl;
             return 3;
         }
+        obtuse_triangle_count = count_obtuse_triangles(cdt);
+        cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+        CGAL::draw(cdt);
+        
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
         else break;
     }
