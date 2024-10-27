@@ -407,7 +407,7 @@ Point steiner_at_projection(CDT& cdt, Polygon polygon){
 
 
 
-int main(void){
+int main(int argc, char *argv[]){
     //file name insert to open
     std::string filename;
     cout << "Enter file name:" << endl;
@@ -483,12 +483,19 @@ int main(void){
 
     //select steiner point placement method
     int method;
-    cout << "Enter method number (1,2,3)" << endl;
-    cin >> method;
+    if (argc > 1) method = atoi(argv[1]);
+    else {
+        cout << "Enter method number (1,2,3)" << endl;
+        cin >> method;
+    }
 
+    //give maximum amount of allowed steiner points
     int steiner_max;
-    cout << "Enter number of desired steiner points:" << endl;
-    cin >> steiner_max;
+    if (argc > 2) steiner_max = atoi(argv[2]);
+    else {
+        cout << "Enter number of max steiner points:" << endl;
+        cin >> steiner_max;
+    }
 
     //insert steiner points based on the selected method
     for (int i = 0; i < steiner_max; i++){
