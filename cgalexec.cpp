@@ -113,14 +113,14 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
 CDT constrained_delaunay_function(vector<Point> points, const vector<int> region_boundary, vector<vector<int>> additional_constraints, Polygon &polygon){
     CDT cdt;
 
-    for (size_t i = 0; i < region_boundary.size(); ++i) {
+    for (size_t i = 0; i < region_boundary.size(); ++i){
         int a = region_boundary[i];
         int b = region_boundary[(i + 1) % region_boundary.size()];
         polygon.push_back(points[a]);
         cdt.insert_constraint(points[a], points[b]);
     }
 
-    for (const auto& pt : points) {
+    for (const auto& pt : points){
         cdt.insert(pt);
     }
 
@@ -145,10 +145,32 @@ vector<Segment> get_segments(const CDT& cdt){
 
 
 
-bool is_obtuse_triangle(const Point& a, const Point& b, const Point& c){
-    K::Vector_2 v1 = b - a;
-    K::Vector_2 v2 = c - a;
-    K::Vector_2 v3 = c - b;
+bool is_obtuse_triangle(const Face_handle face, const Polygon polygon){
+    Point p1 = face->vertex(0)->point();
+    Point p2 = face->vertex(1)->point();
+    Point p3 = face->vertex(2)->point();
+
+    if (polygon.bounded_side(p1) != CGAL::ON_BOUNDED_SIDE &&
+        polygon.bounded_side(p1) != CGAL::ON_BOUNDARY){
+        return false;
+    }
+    if (polygon.bounded_side(p2) != CGAL::ON_BOUNDED_SIDE &&
+        polygon.bounded_side(p2) != CGAL::ON_BOUNDARY){
+        return false;
+    }
+    if (polygon.bounded_side(p3) != CGAL::ON_BOUNDED_SIDE &&
+        polygon.bounded_side(p3) != CGAL::ON_BOUNDARY){
+        return false;
+    }
+
+    Point centroid = CGAL::centroid(p1, p2, p3);
+    if (polygon.bounded_side(centroid) != CGAL::ON_BOUNDED_SIDE){
+        return false;
+    }
+
+    K::Vector_2 v1 = p2 - p1;
+    K::Vector_2 v2 = p3 - p1;
+    K::Vector_2 v3 = p3 - p2;
 
     double dot1 = v1 * v2;
     double dot2 = -v1 * v3;
@@ -159,17 +181,13 @@ bool is_obtuse_triangle(const Point& a, const Point& b, const Point& c){
 
 
 
-int count_obtuse_triangles(const CDT& cdt){
+int count_obtuse_triangles(const CDT& cdt, Polygon polygon){
     int obtuse_triangle_count = 0;
     int triangle_count = 0;
 
     for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face){
-        Point p1 = face->vertex(0)->point();
-        Point p2 = face->vertex(1)->point();
-        Point p3 = face->vertex(2)->point();
-
         triangle_count++;
-        if (is_obtuse_triangle(p1, p2, p3)){
+        if (is_obtuse_triangle(face, polygon)){
             obtuse_triangle_count++;
         }
     }
@@ -180,51 +198,43 @@ int count_obtuse_triangles(const CDT& cdt){
 
 
 
-bool check_steiner_point(CDT& cdt, const Point& steiner_point, const Polygon polygon){
-    if (polygon.bounded_side(steiner_point) == CGAL::ON_BOUNDED_SIDE){
-        cout << "inside" << endl;
-        return true;
-    }
-    cout << "outside" << endl;
-    return false;
-}
-
-
-
-Face_handle find_obtuse_triangle(CDT& cdt){
+Face_handle find_obtuse_triangle(CDT& cdt, Polygon polygon){
     for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face){
-        Point p1 = face->vertex(0)->point();
-        Point p2 = face->vertex(1)->point();
-        Point p3 = face->vertex(2)->point();
-
-        if (is_obtuse_triangle(p1, p2, p3)) return face;
+        if (is_obtuse_triangle(face, polygon)) return face;
     }
-    cout << endl;
     return nullptr;
 }
 
 
 
 Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
-    pair<Point, Point> longest_edge;
-    double max_distance = 0;
-
-    for (auto edge = cdt.finite_edges_begin(); edge != cdt.finite_edges_end(); ++edge){
-        Point p1 = cdt.segment(*edge).source();
-        Point p2 = cdt.segment(*edge).target();
-
-        double distance = CGAL::squared_distance(p1, p2);
-        if (distance > max_distance && check_steiner_point(cdt, midpoint(p1,p2), polygon)){
-            max_distance = distance;
-            longest_edge = make_pair(p1, p2);
-        }
+    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
+    if (triangle == nullptr){
+        return Point(nan(""), nan(""));
     }
 
-    if (max_distance == 0) return Point(nan(""), nan(""));
-    Point p1 = longest_edge.first;
-    Point p2 = longest_edge.second;
+    Point p1 = triangle->vertex(0)->point();
+    Point p2 = triangle->vertex(1)->point();
+    Point p3 = triangle->vertex(2)->point();
 
-    Point steiner_point = CGAL::midpoint(p1, p2);
+    K::Vector_2 v1 = p2 - p1;
+    K::Vector_2 v2 = p3 - p1;
+    K::Vector_2 v3 = p3 - p2;
+
+    double dot1 = v1 * v2;
+    double dot2 = -v1 * v3;
+    double dot3 = v2 * v3;
+
+    Point steiner_point;
+    if (dot1 < 0){
+        steiner_point = CGAL::midpoint(p2, p3);
+    }
+    else if (dot2 < 0){
+        steiner_point = CGAL::midpoint(p1, p3);
+    }
+    else if (dot3 < 0){
+        steiner_point = CGAL::midpoint(p1, p2);
+    }
 
     cdt.insert(steiner_point);
     return steiner_point;
@@ -233,7 +243,7 @@ Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
 
 
 Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
-    Face_handle triangle = find_obtuse_triangle(cdt);
+    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
     if (triangle == nullptr){
         return Point(nan(""), nan(""));
     }
@@ -250,8 +260,8 @@ Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
 
 
 
-Point steiner_at_projection(CDT& cdt){
-    Face_handle triangle = find_obtuse_triangle(cdt);
+Point steiner_at_projection(CDT& cdt, Polygon polygon){
+    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
     if (triangle == nullptr){
         return Point(nan(""), nan(""));
     }
@@ -274,11 +284,11 @@ Point steiner_at_projection(CDT& cdt){
         steiner_point = line.projection(a);
     }
     else if (dot2 < 0){
-        Line line(a, b);
+        Line line(a, c);
         steiner_point = line.projection(b);
     }
     else if (dot3 < 0){
-        Line line(a, c);
+        Line line(a, b);
         steiner_point = line.projection(c);
     }
 
@@ -350,9 +360,9 @@ std::ifstream file(filename);
     Polygon polygon;
     CDT cdt = constrained_delaunay_function(points, region_boundary, additional_constraints, polygon);
 
-    CGAL::draw(cdt);
-    int obtuse_triangle_count = count_obtuse_triangles(cdt);
+    int obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+    CGAL::draw(cdt);
 
     int method;
     cout << "Enter method number (1,2,3)" << endl;
@@ -366,22 +376,19 @@ std::ifstream file(filename);
         Point steiner_point;
         if (method == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
         else if (method == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
-        else if (method == 3) steiner_point = steiner_at_projection(cdt);
+        else if (method == 3) steiner_point = steiner_at_projection(cdt, polygon);
         else if (method == 3); //steiner_point = steiner_at_3(cdt, polygon);
         else{
             cout << "Wrong method imput." << endl;
             return 3;
         }
-        obtuse_triangle_count = count_obtuse_triangles(cdt);
-        cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
-        CGAL::draw(cdt);
         
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
         else break;
     }
-    CGAL::draw(cdt);
-    obtuse_triangle_count = count_obtuse_triangles(cdt);
+    obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+    CGAL::draw(cdt);
 
     vector<Segment> segments = get_segments(cdt);
 
