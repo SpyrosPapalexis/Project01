@@ -9,6 +9,8 @@
 #include <CGAL/draw_triangulation_2.h>
 #include <CGAL/point_generators_2.h>
 #include <CGAL/Polygon_2.h>
+#include <cmath>
+#include <numeric>
 
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
@@ -26,6 +28,40 @@ typedef K::Line_2 Line;
 
 using namespace std;
 using namespace boost::json;
+
+
+
+int calculate_gcd(int a, int b) {
+    while (b != 0) {
+        int temp = b;
+        b = a % b;
+        a = temp;
+    }
+    return a;
+}
+
+
+
+std::string double_to_string(double value) {
+    const double tolerance = 1e-6; //allowable error for floating-point comparison
+
+    int numerator = 1, denominator = 1;
+    
+    //scale to avoid precision issues
+    int max_denominator = 10000; 
+    for (int den = 1; den <= max_denominator; ++den) {
+        //round to nearest integer
+        int num = static_cast<int>(value * den + 0.5);
+        if (std::abs(static_cast<double>(num) / den - value) < tolerance) {
+            numerator = num;
+            denominator = den;
+            return std::to_string(num) + "/" + std::to_string(den);
+        }
+    }
+
+    return "error!";
+}
+
 
 
 int find_point_index(const vector<Point>& points, const Point& target){
@@ -54,8 +90,11 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
     boost::json::array steiner_points_x;
     boost::json::array steiner_points_y;
     for (auto it = points.begin() + num_points; it != points.end(); ++it){ //steiner points are offset by numpoints in points vector
-        steiner_points_x.push_back(value((*it)[0]));
-        steiner_points_y.push_back(value((*it)[1]));
+        //push integer Steiner coordinates and check for floating-point
+        if ((*it)[0] == (int)(*it)[0] || (*it)[0] == 0.0) steiner_points_x.push_back(value((int)(*it)[0]));
+        else steiner_points_x.push_back(value(double_to_string((*it)[0])));
+        if ((*it)[1] == (int)(*it)[1] || (*it)[1] == 0.0) steiner_points_y.push_back(value((int)(*it)[1]));
+        else steiner_points_y.push_back(value(double_to_string((*it)[1])));
     }
     
     ss << "  \"steiner_points_x\": [";
