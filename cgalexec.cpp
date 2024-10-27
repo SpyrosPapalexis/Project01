@@ -211,12 +211,16 @@ int count_obtuse_triangles(const CDT& cdt, Polygon polygon){
 
 
 
-Face_handle find_obtuse_triangle(CDT& cdt, Polygon polygon){
+Face_handle find_obtuse_triangle(CDT& cdt, Polygon polygon, int triangle_count){
+    int i = 0;
     //iterate all the faces in the cdt
     for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face){
 
         //check if the current triangle is obtuse
-        if (is_obtuse_triangle(face, polygon)) return face;
+        if (is_obtuse_triangle(face, polygon)){
+            if (i == triangle_count) return face;
+            i++;
+        }
     }
     return nullptr;
 }
@@ -237,117 +241,129 @@ bool valid_steiner(Point steiner_point, const CDT& cdt){
 }
 
 Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
-    //find an obtuse triangle in the cdt
-    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
+    int triangle_count = 0;
+    //if triangle results to a non valid point, loops for another triangle
+    while(1){
+        //find an obtuse triangle in the cdt
+        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
 
-    //if no obtuse triangle is found, return null point
-    if (triangle == nullptr){
-        return Point(nan(""), nan(""));
+        //if no obtuse triangle is found, return null point
+        if (triangle == nullptr){
+            return Point(nan(""), nan(""));
+        }
+
+        //retrieve the three points of the triangle
+        Point p1 = triangle->vertex(0)->point();
+        Point p2 = triangle->vertex(1)->point();
+        Point p3 = triangle->vertex(2)->point();
+
+        //calculate the vectors for the triangle's edges
+        K::Vector_2 v1 = p2 - p1;
+        K::Vector_2 v2 = p3 - p1;
+        K::Vector_2 v3 = p3 - p2;
+
+        //calculate the dot products
+        double dot1 = v1 * v2;
+        double dot2 = -v1 * v3;
+        double dot3 = v2 * v3;
+
+        Point steiner_point;
+
+        //determine which angle is obtuse and calculate the midpoint of the corresponding edge
+        if (dot1 < 0) steiner_point = CGAL::midpoint(p2, p3);
+        else if (dot2 < 0) steiner_point = CGAL::midpoint(p1, p3);
+        else if (dot3 < 0) steiner_point = CGAL::midpoint(p1, p2);
+
+        //check if point already exists there
+        if (valid_steiner(steiner_point, cdt)){
+            cdt.insert(steiner_point);
+            return steiner_point;
+        }
+        triangle_count++;
     }
-
-    //retrieve the three points of the triangle
-    Point p1 = triangle->vertex(0)->point();
-    Point p2 = triangle->vertex(1)->point();
-    Point p3 = triangle->vertex(2)->point();
-
-    //calculate the vectors for the triangle's edges
-    K::Vector_2 v1 = p2 - p1;
-    K::Vector_2 v2 = p3 - p1;
-    K::Vector_2 v3 = p3 - p2;
-
-    //calculate the dot products
-    double dot1 = v1 * v2;
-    double dot2 = -v1 * v3;
-    double dot3 = v2 * v3;
-
-    Point steiner_point;
-
-    //determine which angle is obtuse and calculate the midpoint of the corresponding edge
-    if (dot1 < 0) steiner_point = CGAL::midpoint(p2, p3);
-    else if (dot2 < 0) steiner_point = CGAL::midpoint(p1, p3);
-    else if (dot3 < 0) steiner_point = CGAL::midpoint(p1, p2);
-
-    //check if point already exists there
-    if (valid_steiner(steiner_point, cdt)){
-        cdt.insert(steiner_point);
-        return steiner_point;
-    }
-    return Point(nan(""), nan(""));
 }
 
 
 
 Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
-    //find an obtuse triangle in the cdt
-    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
+    int triangle_count = 0;
+    //if triangle results to a non valid point, loops for another triangle
+    while(1){
+        //find an obtuse triangle in the cdt
+        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
 
-    //if no obtuse triangle is found, return null point
-    if (triangle == nullptr){
-        return Point(nan(""), nan(""));
+        //if no obtuse triangle is found, return null point
+        if (triangle == nullptr){
+            return Point(nan(""), nan(""));
+        }
+
+        //retrieve the three points of the triangle
+        Point p1 = triangle->vertex(0)->point();
+        Point p2 = triangle->vertex(1)->point();
+        Point p3 = triangle->vertex(2)->point();
+
+        Point steiner_point = CGAL::circumcenter(p1, p2, p3);
+        //if steiner point is outside of boundary, look for centroid instead
+        if (polygon.bounded_side(steiner_point) != CGAL::ON_BOUNDED_SIDE) steiner_point = CGAL::centroid(p1, p2, p3);
+        //check if point already exists there
+        if (valid_steiner(steiner_point, cdt)){
+            cdt.insert(steiner_point);
+            return steiner_point;
+        }
+        triangle_count++;
     }
-
-    //retrieve the three points of the triangle
-    Point p1 = triangle->vertex(0)->point();
-    Point p2 = triangle->vertex(1)->point();
-    Point p3 = triangle->vertex(2)->point();
-
-    Point steiner_point = CGAL::circumcenter(p1, p2, p3);
-
-    //check if point already exists there
-    if (valid_steiner(steiner_point, cdt)){
-        cdt.insert(steiner_point);
-        return steiner_point;
-    }
-    return Point(nan(""), nan(""));
 }
 
 
 
 Point steiner_at_projection(CDT& cdt, Polygon polygon){
-    //find an obtuse triangle in the cdt
-    Face_handle triangle = find_obtuse_triangle(cdt, polygon);
+    int triangle_count = 0;
+    //if triangle results to a non valid point, loops for another triangle
+    while(1){
+        //find an obtuse triangle in the cdt
+        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
+        //if no obtuse triangle is found, return null point
+        if (triangle == nullptr){
+            return Point(nan(""), nan(""));
+        }
 
-    //if no obtuse triangle is found, return null point
-    if (triangle == nullptr){
-        return Point(nan(""), nan(""));
+        //retrieve the three points of the triangle
+        Point p1 = triangle->vertex(0)->point();
+        Point p2 = triangle->vertex(1)->point();
+        Point p3 = triangle->vertex(2)->point();
+
+        //calculate the vectors for the triangle's edges
+        K::Vector_2 v1 = p2 - p1;
+        K::Vector_2 v2 = p3 - p1;
+        K::Vector_2 v3 = p3 - p2;
+
+        //calculate the dot products
+        double dot1 = v1 * v2;
+        double dot2 = -v1 * v3;
+        double dot3 = v2 * v3;
+
+        //determine which angle is obtuse and calculate the projection on the corresponding edge
+        Point steiner_point;
+        if (dot1 < 0){
+            Line line(p2, p3);
+            steiner_point = line.projection(p1);
+        }
+        else if (dot2 < 0){
+            Line line(p1, p3);
+            steiner_point = line.projection(p2);
+        }
+        else if (dot3 < 0){
+            Line line(p1, p2);
+            steiner_point = line.projection(p3);
+        }
+
+        //check if point already exists there
+        if (valid_steiner(steiner_point, cdt)){
+            cdt.insert(steiner_point);
+            return steiner_point;
+        }
+        triangle_count++;
     }
-
-    //retrieve the three points of the triangle
-    Point p1 = triangle->vertex(0)->point();
-    Point p2 = triangle->vertex(1)->point();
-    Point p3 = triangle->vertex(2)->point();
-
-    //calculate the vectors for the triangle's edges
-    K::Vector_2 v1 = p2 - p1;
-    K::Vector_2 v2 = p3 - p1;
-    K::Vector_2 v3 = p3 - p2;
-
-    //calculate the dot products
-    double dot1 = v1 * v2;
-    double dot2 = -v1 * v3;
-    double dot3 = v2 * v3;
-
-    //determine which angle is obtuse and calculate the projection on the corresponding edge
-    Point steiner_point;
-    if (dot1 < 0){
-        Line line(p2, p3);
-        steiner_point = line.projection(p1);
-    }
-    else if (dot2 < 0){
-        Line line(p1, p3);
-        steiner_point = line.projection(p2);
-    }
-    else if (dot3 < 0){
-        Line line(p1, p2);
-        steiner_point = line.projection(p3);
-    }
-
-    //check if point already exists there
-    if (valid_steiner(steiner_point, cdt)){
-        cdt.insert(steiner_point);
-        return steiner_point;
-    }
-    return Point(nan(""), nan(""));
 }
 
 
