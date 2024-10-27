@@ -244,7 +244,6 @@ int count_obtuse_triangles(const CDT& cdt, Polygon polygon){
         if (is_obtuse_triangle(face, polygon)) obtuse_triangle_count++;
     }
 
-    cout << "total triangles: " << triangle_count << endl;
     return obtuse_triangle_count;
 }
 
@@ -518,6 +517,7 @@ int main(int argc, char *argv[]){
     //recount obtuse triangles after inserting steiner points and redraw
     obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
+    cout << points.size() - num_points << " Steiner points added" << endl;
     CGAL::draw(cdt);
 
     //create segments from cdt for the output file
