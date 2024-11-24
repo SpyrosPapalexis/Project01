@@ -30,6 +30,9 @@ using namespace std;
 using namespace boost::json;
 
 
+//
+//TODO PARAMETERS IN JSON
+//
 
 int calculate_gcd(int a, int b) {
     while (b != 0) {
@@ -76,9 +79,10 @@ int find_point_index(const vector<Point>& points, const Point& target){
 
 
 
-int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments){
+int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments, int obtuse_triangle_count, std::string method){
     //set the content type in a string for a cleaner code :)
     std::string content_type = "CG_SHOP_2025_Solution";
+    std::string method = "method";
 
     //use a stringstream to construct the JSON file contents
     std::stringstream ss;
@@ -104,14 +108,12 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
     }
     ss << "],\n";
 
-    
     ss << "  \"steiner_points_y\": [";
     for (size_t i = 0; i < steiner_points_y.size(); ++i){
         ss << steiner_points_y[i];
         if (i < steiner_points_y.size() - 1) ss << ", ";
     }
     ss << "],\n";
-
 
     ss << "  \"edges\": [\n";
     for (size_t i = 0; i < segments.size(); ++i){
@@ -127,6 +129,10 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
         }
     }
     ss << "  ]\n";
+
+    ss << "  \"obtuse_count\": \"" << obtuse_triangle_count << "\",\n";
+    ss << "  \"method\": \"" << method << "\",\n";
+
     ss << "}\n";
 
     //try to write output.json
@@ -430,7 +436,7 @@ int main(int argc, char *argv[]){
     value jsonData;
     try {
         jsonData = parse(jsonStr);
-    } catch (const std::exception &e) {
+    } catch (const std::exception &e){
         cerr << "error reading file " << e.what() << endl;
         return 2;
     }
@@ -443,12 +449,12 @@ int main(int argc, char *argv[]){
     int num_points = obj["num_points"].as_int64();
 
     vector<int> points_x;
-    for (auto& item : obj["points_x"].as_array()) {
+    for (auto& item : obj["points_x"].as_array()){
         points_x.push_back(item.as_int64());
     }
 
     vector<int> points_y;
-    for (auto& item : obj["points_y"].as_array()) {
+    for (auto& item : obj["points_y"].as_array()){
         points_y.push_back(item.as_int64());
     }
 
@@ -459,20 +465,29 @@ int main(int argc, char *argv[]){
     }
 
     vector<int> region_boundary;
-    for (auto& item : obj["region_boundary"].as_array()) {
+    for (auto& item : obj["region_boundary"].as_array()){
         region_boundary.push_back(item.as_int64());
     }
 
     int num_constraints = obj["num_constraints"].as_int64();
 
     vector<vector<int>> additional_constraints;
-    for (auto& item : obj["additional_constraints"].as_array()) {
+    for (auto& item : obj["additional_constraints"].as_array()){
         vector<int> constraint;
         for (auto& sub_item : item.as_array()) {
             constraint.push_back(sub_item.as_int64());
         }
         additional_constraints.push_back(constraint);
     }
+
+    std::string method = obj["method"].as_string().c_str();
+
+    map<std::string, double> parameters;
+    for (const auto& param : obj["parameters"].as_object()){
+        parameters[std::string(param.key())] = param.value().as_double();
+    }
+
+    bool delaunay = obj["delaunay"].as_bool();
 
     //create Constrained Delaunay Triangulation (cdt) and Polygon for region boundary
     Polygon polygon;
@@ -484,11 +499,11 @@ int main(int argc, char *argv[]){
     CGAL::draw(cdt);
 
     //select steiner point placement method
-    int method;
-    if (argc > 2) method = atoi(argv[2]);
+    int smethod;
+    if (argc > 2) smethod = atoi(argv[2]);
     else {
         cout << "Enter method number (1,2,3)" << endl;
-        cin >> method;
+        cin >> smethod;
     }
 
     //give maximum amount of allowed steiner points
@@ -502,9 +517,9 @@ int main(int argc, char *argv[]){
     //insert steiner points based on the selected method
     for (int i = 0; i < steiner_max; i++){
         Point steiner_point;
-        if (method == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
-        else if (method == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
-        else if (method == 3) steiner_point = steiner_at_projection(cdt, polygon);
+        if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
+        else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
+        else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
         else{
             cout << "Wrong method imput." << endl;
             return 3;
@@ -522,7 +537,7 @@ int main(int argc, char *argv[]){
 
     //create segments from cdt for the output file
     vector<Segment> segments = get_segments(cdt);
-    make_json(instance_uid, num_points, points, segments);
+    make_json(instance_uid, num_points, points, segments, obtuse_triangle_count, method);
 
     return 0;
 }

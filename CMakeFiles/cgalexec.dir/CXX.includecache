@@ -1,0 +1,36 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/monke/Project01/cgalexec.cpp
+iostream
+-
+unistd.h
+-
+fcntl.h
+-
+string
+-
+boost/json.hpp
+-
+boost/json/src.hpp
+-
+CGAL/Exact_predicates_inexact_constructions_kernel.h
+-
+CGAL/Constrained_Delaunay_triangulation_2.h
+-
+CGAL/draw_triangulation_2.h
+-
+CGAL/point_generators_2.h
+-
+CGAL/Polygon_2.h
+-
+cmath
+-
+numeric
+-
+
