@@ -4,6 +4,7 @@
 #include <string>
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/draw_triangulation_2.h>
@@ -12,6 +13,7 @@
 #include <cmath>
 #include <numeric>
 
+typedef CGAL::Exact_predicates_exact_constructions_kernel EK;
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
 typedef CGAL::Constrained_triangulation_face_base_2<K> Fb;
@@ -25,6 +27,7 @@ typedef K::Segment_2 Segment;
 typedef CDT::Face_handle Face_handle;
 typedef CDT::Edge_iterator Edge_iterator;
 typedef K::Line_2 Line;
+typedef EK::FT FT;
 
 using namespace std;
 using namespace boost::json;
@@ -34,35 +37,26 @@ using namespace boost::json;
 //TODO PARAMETERS IN JSON
 //
 
-int calculate_gcd(int a, int b) {
-    while (b != 0) {
-        int temp = b;
-        b = a % b;
-        a = temp;
-    }
-    return a;
+std::string gmpz_to_string(const CGAL::Gmpz& value) {
+    // Use an ostringstream to convert Gmpz to string
+    std::ostringstream oss;
+    oss << value;  // CGAL::Gmpz supports stream output
+    return oss.str();
 }
 
+std::string print_rational(const K::FT& coord) {
+    // Convert Lazy_exact_nt to exact (CGAL::Gmpq)
+    auto exact_coord = CGAL::exact(coord);  // Evaluates Lazy_exact_nt to CGAL::Gmpq
 
+    // Cast the exact coordinate to CGAL::Gmpq
+    const CGAL::Gmpq& gmpq_value = exact_coord;
 
-std::string double_to_string(double value) {
-    const double tolerance = 1e-6; //allowable error for floating-point comparison
+    // Convert numerator and denominator to strings
+    std::string num = gmpz_to_string(gmpq_value.numerator());
+    std::string den = gmpz_to_string(gmpq_value.denominator());
 
-    int numerator = 1, denominator = 1;
-    
-    //scale to avoid precision issues
-    int max_denominator = 10000; 
-    for (int den = 1; den <= max_denominator; ++den) {
-        //round to nearest integer
-        int num = static_cast<int>(value * den + 0.5);
-        if (std::abs(static_cast<double>(num) / den - value) < tolerance) {
-            numerator = num;
-            denominator = den;
-            return std::to_string(num) + "/" + std::to_string(den);
-        }
-    }
-
-    return "error!";
+    // Construct the string representation
+    return num + "/" + den;
 }
 
 
@@ -82,7 +76,6 @@ int find_point_index(const vector<Point>& points, const Point& target){
 int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments, int obtuse_triangle_count, std::string method){
     //set the content type in a string for a cleaner code :)
     std::string content_type = "CG_SHOP_2025_Solution";
-    std::string method = "method";
 
     //use a stringstream to construct the JSON file contents
     std::stringstream ss;
@@ -96,9 +89,9 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
     for (auto it = points.begin() + num_points; it != points.end(); ++it){ //steiner points are offset by numpoints in points vector
         //push integer Steiner coordinates and check for floating-point
         if ((*it)[0] == (int)(*it)[0] || (*it)[0] == 0.0) steiner_points_x.push_back(value((int)(*it)[0]));
-        else steiner_points_x.push_back(value(double_to_string((*it)[0])));
+        else steiner_points_x.push_back(value(print_rational((*it)[0])));
         if ((*it)[1] == (int)(*it)[1] || (*it)[1] == 0.0) steiner_points_y.push_back(value((int)(*it)[1]));
-        else steiner_points_y.push_back(value(double_to_string((*it)[1])));
+        else steiner_points_y.push_back(value(print_rational((*it)[1])));
     }
     
     ss << "  \"steiner_points_x\": [";
