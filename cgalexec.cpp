@@ -474,12 +474,23 @@ int main(int argc, char *argv[]){
     }
 
     std::string method = obj["method"].as_string().c_str();
-
+    
     map<std::string, double> parameters;
-    for (const auto& param : obj["parameters"].as_object()){
-        parameters[std::string(param.key())] = param.value().as_double();
+    for (const auto& param : obj["parameters"].as_object()) {
+        //check if the value can be treated as a double
+        if (param.value().is_double()) {
+            parameters[std::string(param.key())] = param.value().as_double();
+        }
+        else if (param.value().is_int64()) {
+            //convert integers to double
+            parameters[std::string(param.key())] = static_cast<double>(param.value().as_int64());
+        }
+        else {
+            //log unsupported types
+            cerr << "Warning: Parameter " << param.key() << " is not a numeric type and will be ignored." << endl;
+        }
     }
-
+    
     bool delaunay = obj["delaunay"].as_bool();
 
     //create Constrained Delaunay Triangulation (cdt) and Polygon for region boundary
@@ -513,10 +524,7 @@ int main(int argc, char *argv[]){
         if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
         else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
         else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
-        else{
-            cout << "Wrong method imput." << endl;
-            return 3;
-        }
+
         //add Steiner point only if it is not null
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
         else break; //break if no valid steiner points are left
