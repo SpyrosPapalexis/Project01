@@ -38,24 +38,24 @@ using namespace boost::json;
 //
 
 std::string gmpz_to_string(const CGAL::Gmpz& value) {
-    // Use an ostringstream to convert Gmpz to string
+    //use an ostringstream to convert Gmpz to string
     std::ostringstream oss;
-    oss << value;  // CGAL::Gmpz supports stream output
+    oss << value;  //CGAL::Gmpz supports stream output
     return oss.str();
 }
 
 std::string print_rational(const K::FT& coord) {
-    // Convert Lazy_exact_nt to exact (CGAL::Gmpq)
-    auto exact_coord = CGAL::exact(coord);  // Evaluates Lazy_exact_nt to CGAL::Gmpq
+    //convert Lazy_exact_nt to exact (CGAL::Gmpq)
+    auto exact_coord = CGAL::exact(coord);  //evaluates Lazy_exact_nt to CGAL::Gmpq
 
-    // Cast the exact coordinate to CGAL::Gmpq
+    //cast the exact coordinate to CGAL::Gmpq
     const CGAL::Gmpq& gmpq_value = exact_coord;
 
-    // Convert numerator and denominator to strings
+    //convert numerator and denominator to strings
     std::string num = gmpz_to_string(gmpq_value.numerator());
     std::string den = gmpz_to_string(gmpq_value.denominator());
 
-    // Construct the string representation
+    //construct the string representation
     return num + "/" + den;
 }
 
@@ -73,7 +73,7 @@ int find_point_index(const vector<Point>& points, const Point& target){
 
 
 
-int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments, int obtuse_triangle_count, std::string method){
+int make_json(std::string instance_uid, int num_points, vector<Point> points, vector<Segment> segments, int obtuse_triangle_count, std::string method, map<std::string, double> parameters){
     //set the content type in a string for a cleaner code :)
     std::string content_type = "CG_SHOP_2025_Solution";
 
@@ -121,10 +121,19 @@ int make_json(std::string instance_uid, int num_points, vector<Point> points, ve
             ss << "\n";
         }
     }
-    ss << "  ]\n";
+    ss << "  ],\n";
 
     ss << "  \"obtuse_count\": \"" << obtuse_triangle_count << "\",\n";
     ss << "  \"method\": \"" << method << "\",\n";
+
+    //add parameters dynamically
+    ss << "  \"parameters\": {\n";
+    for (auto it = parameters.begin(); it != parameters.end(); ++it) {
+        ss << "    \"" << it->first << "\": " << it->second;
+        if (std::next(it) != parameters.end()) ss << ",";
+        ss << "\n";
+    }
+    ss << "  }\n";
 
     ss << "}\n";
 
@@ -405,6 +414,86 @@ Point steiner_at_projection(CDT& cdt, Polygon polygon){
 
 
 
+Point steiner_local_search(CDT& cdt, Polygon polygon) {
+    int triangle_count = 0;
+
+    while (true) {
+        // Find an obtuse triangle
+        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
+
+        if (triangle == nullptr) {
+            // No obtuse triangles found
+            return Point(nan(""), nan(""));
+        }
+
+        // Retrieve the three points of the obtuse triangle
+        Point p1 = triangle->vertex(0)->point();
+        Point p2 = triangle->vertex(1)->point();
+        Point p3 = triangle->vertex(2)->point();
+
+        // Calculate vectors and dot products
+        K::Vector_2 v1 = p2 - p1;
+        K::Vector_2 v2 = p3 - p1;
+        K::Vector_2 v3 = p3 - p2;
+
+        double dot1 = v1 * v2;
+        double dot2 = -v1 * v3;
+        double dot3 = v2 * v3;
+
+        Point candidates[5];
+        int candidate_count = 0;
+
+        // Generate candidate Steiner points
+        if (dot1 < 0) {
+            candidates[candidate_count++] = CGAL::midpoint(p2, p3); // Midpoint of obtuse angle edge
+            Line line(p2, p3);
+            candidates[candidate_count++] = line.projection(p1);    // Projection of opposite vertex
+        }
+        else if (dot2 < 0) {
+            candidates[candidate_count++] = CGAL::midpoint(p1, p3);
+            Line line(p1, p3);
+            candidates[candidate_count++] = line.projection(p2);
+        }
+        else if (dot3 < 0) {
+            candidates[candidate_count++] = CGAL::midpoint(p1, p2);
+            Line line(p1, p2);
+            candidates[candidate_count++] = line.projection(p3);
+        }
+
+        candidates[candidate_count++] = CGAL::circumcenter(p1, p2, p3); // Circumcenter as a candidate
+
+        // Evaluate each candidate and choose the best one
+        Point best_candidate;
+        double best_effectiveness = std::numeric_limits<double>::max();
+
+        for (int i = 0; i < candidate_count; i++) {
+            if (!valid_steiner(candidates[i], cdt)) continue;
+
+            // Temporarily add the candidate to the CDT and count obtuse triangles
+            CDT temp_cdt = cdt;
+            temp_cdt.insert(candidates[i]);
+
+            int new_obtuse_count = count_obtuse_triangles(temp_cdt, polygon);
+
+            if (new_obtuse_count < best_effectiveness) {
+                best_candidate = candidates[i];
+                best_effectiveness = new_obtuse_count;
+            }
+        }
+
+        // If a valid best candidate was found, insert it into the CDT
+        if (best_effectiveness < std::numeric_limits<double>::max()) {
+            cdt.insert(best_candidate);
+            return best_candidate;
+        }
+
+        // Move to the next obtuse triangle
+        triangle_count++;
+    }
+}
+
+
+
 int main(int argc, char *argv[]){
     //file name insert to open
     std::string filename;
@@ -521,9 +610,17 @@ int main(int argc, char *argv[]){
     //insert steiner points based on the selected method
     for (int i = 0; i < steiner_max; i++){
         Point steiner_point;
-        if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
-        else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
-        else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
+        if (delaunay == true) {
+            if (method == "local") steiner_point = steiner_local_search(cdt, polygon);
+            else if (method == "sa") cout << "simulated annealing\n";
+            else if (method == "ant") cout << "ant colony\n";
+            else cerr << "incorrect method" << endl;
+        }
+        else {
+            if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
+            else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
+            else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
+        }
 
         //add Steiner point only if it is not null
         if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
@@ -538,7 +635,7 @@ int main(int argc, char *argv[]){
 
     //create segments from cdt for the output file
     vector<Segment> segments = get_segments(cdt);
-    make_json(instance_uid, num_points, points, segments, obtuse_triangle_count, method);
+    make_json(instance_uid, num_points, points, segments, obtuse_triangle_count, method, parameters);
 
     return 0;
 }
