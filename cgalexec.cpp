@@ -414,86 +414,6 @@ Point steiner_at_projection(CDT& cdt, Polygon polygon){
 
 
 
-Point steiner_local_search(CDT& cdt, Polygon polygon) {
-    int triangle_count = 0;
-
-    while (true) {
-        // Find an obtuse triangle
-        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
-
-        if (triangle == nullptr) {
-            // No obtuse triangles found
-            return Point(nan(""), nan(""));
-        }
-
-        // Retrieve the three points of the obtuse triangle
-        Point p1 = triangle->vertex(0)->point();
-        Point p2 = triangle->vertex(1)->point();
-        Point p3 = triangle->vertex(2)->point();
-
-        // Calculate vectors and dot products
-        K::Vector_2 v1 = p2 - p1;
-        K::Vector_2 v2 = p3 - p1;
-        K::Vector_2 v3 = p3 - p2;
-
-        double dot1 = v1 * v2;
-        double dot2 = -v1 * v3;
-        double dot3 = v2 * v3;
-
-        Point candidates[5];
-        int candidate_count = 0;
-
-        // Generate candidate Steiner points
-        if (dot1 < 0) {
-            candidates[candidate_count++] = CGAL::midpoint(p2, p3); // Midpoint of obtuse angle edge
-            Line line(p2, p3);
-            candidates[candidate_count++] = line.projection(p1);    // Projection of opposite vertex
-        }
-        else if (dot2 < 0) {
-            candidates[candidate_count++] = CGAL::midpoint(p1, p3);
-            Line line(p1, p3);
-            candidates[candidate_count++] = line.projection(p2);
-        }
-        else if (dot3 < 0) {
-            candidates[candidate_count++] = CGAL::midpoint(p1, p2);
-            Line line(p1, p2);
-            candidates[candidate_count++] = line.projection(p3);
-        }
-
-        candidates[candidate_count++] = CGAL::circumcenter(p1, p2, p3); // Circumcenter as a candidate
-
-        // Evaluate each candidate and choose the best one
-        Point best_candidate;
-        double best_effectiveness = std::numeric_limits<double>::max();
-
-        for (int i = 0; i < candidate_count; i++) {
-            if (!valid_steiner(candidates[i], cdt)) continue;
-
-            // Temporarily add the candidate to the CDT and count obtuse triangles
-            CDT temp_cdt = cdt;
-            temp_cdt.insert(candidates[i]);
-
-            int new_obtuse_count = count_obtuse_triangles(temp_cdt, polygon);
-
-            if (new_obtuse_count < best_effectiveness) {
-                best_candidate = candidates[i];
-                best_effectiveness = new_obtuse_count;
-            }
-        }
-
-        // If a valid best candidate was found, insert it into the CDT
-        if (best_effectiveness < std::numeric_limits<double>::max()) {
-            cdt.insert(best_candidate);
-            return best_candidate;
-        }
-
-        // Move to the next obtuse triangle
-        triangle_count++;
-    }
-}
-
-
-
 int main(int argc, char *argv[]){
     //file name insert to open
     std::string filename;
@@ -608,13 +528,89 @@ int main(int argc, char *argv[]){
     }
 
     //insert steiner points based on the selected method
-    for (int i = 0; i < steiner_max; i++){
+    for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
         Point steiner_point;
         if (delaunay == true) {
-            if (method == "local") steiner_point = steiner_local_search(cdt, polygon);
-            else if (method == "sa") cout << "simulated annealing\n";
-            else if (method == "ant") cout << "ant colony\n";
-            else cerr << "incorrect method" << endl;
+            //local search
+            if (method == "local") {
+                for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
+                    // Check if the triangle is obtuse
+                    if (is_obtuse_triangle(face, polygon)) {
+                        // Retrieve the three points of the triangle
+                        Point p1 = face->vertex(0)->point();
+                        Point p2 = face->vertex(1)->point();
+                        Point p3 = face->vertex(2)->point();
+
+                        // Try inserting Steiner points at different candidate locations
+                        vector<Point> candidate_points;
+
+                        // Midpoints of triangle edges
+                        candidate_points.push_back(CGAL::midpoint(p1, p2));
+                        candidate_points.push_back(CGAL::midpoint(p2, p3));
+                        candidate_points.push_back(CGAL::midpoint(p1, p3));
+
+                        // Circumcenter of the triangle
+                        Point circumcenter = CGAL::circumcenter(p1, p2, p3);
+                        if (polygon.bounded_side(circumcenter) == CGAL::ON_BOUNDED_SIDE) {
+                            candidate_points.push_back(circumcenter);
+                        }
+
+                        // Centroid of the triangle (fallback)
+                        candidate_points.push_back(CGAL::centroid(p1, p2, p3));
+
+                        // Evaluate candidates
+                        Point best_point;
+                        int best_obtuse_count = obtuse_triangle_count;
+
+                        for (const auto& candidate : candidate_points) {
+                            if (!valid_steiner(candidate, cdt)) {
+                                continue; // Skip invalid candidates
+                            }
+
+                            // Temporarily insert the candidate
+                            CDT::Vertex_handle vh_candidate = cdt.insert(candidate);
+
+                            // Check if the vertex can be safely removed
+                            bool removable = !cdt.are_there_incident_constraints(vh_candidate);
+
+                            int new_obtuse_count = -1;
+                            if (removable) {
+                                // Count obtuse triangles only if removable
+                                new_obtuse_count = count_obtuse_triangles(cdt, polygon);
+                                cdt.remove(vh_candidate); // Safe removal
+                            } else {
+                                // Skip removal and rollback by removing manually
+                                cdt.remove_incident_constraints(vh_candidate);
+                                cdt.remove(vh_candidate); // Now it is safe to remove
+                            }
+
+                            // Keep track of the best candidate
+                            if (new_obtuse_count != -1 && new_obtuse_count < best_obtuse_count) {
+                                best_obtuse_count = new_obtuse_count;
+                                best_point = candidate;
+                            }
+                        }
+
+                        // Insert the best candidate, if found
+                        if (best_obtuse_count < obtuse_triangle_count) {
+                            cdt.insert(best_point);
+                            obtuse_triangle_count = best_obtuse_count;
+                            points.push_back(best_point);
+                        }
+
+                        // Break out of the loop once a point is inserted, to perform incremental local improvements
+                        break;
+                    }
+                } 
+            }
+            //simulated annealing
+            else if (method == "sa") {
+                cout << method << endl;
+            }
+            //ant colony
+            else if (method == "ant") {
+                cout << method << endl;
+            }
         }
         else {
             if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
