@@ -536,7 +536,7 @@ int main(int argc, char *argv[]){
                 //log unsupported types
                 cerr << "Warning: Parameter " << param.key() << " is not a numeric type and will be ignored." << endl;
             }
-            if (param.key() == "alpha") L = parameters[std::string(param.key())];
+            if (param.key() == "L") L = parameters[std::string(param.key())];
             if (param.key() == "alpha") alpha = parameters[std::string(param.key())];
             if (param.key() == "beta") beta = parameters[std::string(param.key())];
             if (param.key() == "kappa") kappa = parameters[std::string(param.key())];
@@ -560,18 +560,12 @@ int main(int argc, char *argv[]){
     CGAL::draw(cdt);
 
     //give maximum amount of allowed steiner points
-    int steiner_max;
-    if (argc > 2) steiner_max = atoi(argv[2]);
-    else{
-        cout << "Enter number of max steiner points:" << endl;
-        cin >> steiner_max;
-    }
 
     int new_obtuse_triangle_count;
     if (delaunay == true) {
         //local search
         if (method == "local"){
-            for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
+            for (int i = 0; i < L && obtuse_triangle_count > 0; i++){
 
                 Point steiner_point;
                 Point steiner_point_temp;
@@ -622,6 +616,9 @@ int main(int argc, char *argv[]){
                 if (checked == false) break;
                 cdt = cdt_best;
                 obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+                //add Steiner point only if it is not null
+                if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
+                else break; //break if no valid steiner points are left
             }
         }
         //simulated annealing
@@ -644,7 +641,7 @@ int main(int argc, char *argv[]){
         for (int smethod = 1; smethod <= 5; smethod++){
             cdt = original_cdt;
             method_points[smethod-1] = points;
-            for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
+            for (int i = 0; i < L && obtuse_triangle_count > 0; i++){
                 Point steiner_point;
                 if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
                 else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
