@@ -19,6 +19,8 @@ boost/json.hpp
 -
 boost/json/src.hpp
 -
+CGAL/Exact_predicates_exact_constructions_kernel.h
+-
 CGAL/Exact_predicates_inexact_constructions_kernel.h
 -
 CGAL/Constrained_Delaunay_triangulation_2.h

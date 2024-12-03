@@ -1,6 +1,5 @@
 file(REMOVE_RECURSE
   "CMakeFiles/cgalexec.dir/cgalexec.cpp.o"
-  "CMakeFiles/cgalexec.dir/cgalexec.cpp.o.d"
   "cgalexec"
   "cgalexec.pdb"
 )

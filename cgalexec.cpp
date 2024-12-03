@@ -330,7 +330,6 @@ Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
 }
 
 
-
 Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
     int triangle_count = 0;
     //if triangle results to a non valid point, loops for another triangle
@@ -351,6 +350,34 @@ Point steiner_at_circumcenter(CDT& cdt, Polygon polygon){
         Point steiner_point = CGAL::circumcenter(p1, p2, p3);
         //if steiner point is outside of boundary, look for centroid instead
         if (polygon.bounded_side(steiner_point) != CGAL::ON_BOUNDED_SIDE) steiner_point = CGAL::centroid(p1, p2, p3);
+        //check if point already exists there
+        if (valid_steiner(steiner_point, cdt)){
+            cdt.insert(steiner_point);
+            return steiner_point;
+        }
+        triangle_count++;
+    }
+}
+
+
+Point steiner_at_centroid(CDT& cdt, Polygon polygon){
+    int triangle_count = 0;
+    //if triangle results to a non valid point, loops for another triangle
+    while(1){
+        //find an obtuse triangle in the cdt
+        Face_handle triangle = find_obtuse_triangle(cdt, polygon, triangle_count);
+
+        //if no obtuse triangle is found, return null point
+        if (triangle == nullptr){
+            return Point(nan(""), nan(""));
+        }
+
+        //retrieve the three points of the triangle
+        Point p1 = triangle->vertex(0)->point();
+        Point p2 = triangle->vertex(1)->point();
+        Point p3 = triangle->vertex(2)->point();
+
+        Point steiner_point = CGAL::centroid(p1, p2, p3);
         //check if point already exists there
         if (valid_steiner(steiner_point, cdt)){
             cdt.insert(steiner_point);
@@ -418,7 +445,7 @@ int main(int argc, char *argv[]){
     //file name insert to open
     std::string filename;
     if (argc > 1) filename = argv[1];
-    else {
+    else{
         cout << "Enter file name:" << endl;
         cin >> filename;
     }
@@ -436,7 +463,7 @@ int main(int argc, char *argv[]){
 
     //parse the string into JSON data
     value jsonData;
-    try {
+    try{
         jsonData = parse(jsonStr);
     } catch (const std::exception &e){
         cerr << "error reading file " << e.what() << endl;
@@ -476,7 +503,7 @@ int main(int argc, char *argv[]){
     vector<vector<int>> additional_constraints;
     for (auto& item : obj["additional_constraints"].as_array()){
         vector<int> constraint;
-        for (auto& sub_item : item.as_array()) {
+        for (auto& sub_item : item.as_array()){
             constraint.push_back(sub_item.as_int64());
         }
         additional_constraints.push_back(constraint);
@@ -485,7 +512,7 @@ int main(int argc, char *argv[]){
     std::string method = obj["method"].as_string().c_str();
     
     map<std::string, double> parameters;
-    for (const auto& param : obj["parameters"].as_object()) {
+    for (const auto& param : obj["parameters"].as_object()){
         //check if the value can be treated as a double
         if (param.value().is_double()) {
             parameters[std::string(param.key())] = param.value().as_double();
@@ -514,108 +541,91 @@ int main(int argc, char *argv[]){
     //select steiner point placement method
     int smethod;
     if (argc > 2) smethod = atoi(argv[2]);
-    else {
-        cout << "Enter method number (1,2,3)" << endl;
+    else{
+        cout << "Enter method number (1,2,3,4)" << endl;
         cin >> smethod;
     }
 
     //give maximum amount of allowed steiner points
     int steiner_max;
     if (argc > 3) steiner_max = atoi(argv[3]);
-    else {
+    else{
         cout << "Enter number of max steiner points:" << endl;
         cin >> steiner_max;
     }
 
     //insert steiner points based on the selected method
+    int new_obtuse_triangle_count;
     for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
         Point steiner_point;
-        if (delaunay == true) {
-            //local search
-            if (method == "local") {
-                for (auto face = cdt.finite_faces_begin(); face != cdt.finite_faces_end(); ++face) {
-                    // Check if the triangle is obtuse
-                    if (is_obtuse_triangle(face, polygon)) {
-                        // Retrieve the three points of the triangle
-                        Point p1 = face->vertex(0)->point();
-                        Point p2 = face->vertex(1)->point();
-                        Point p3 = face->vertex(2)->point();
+        if (delaunay == true){
+             //local search
+            if (method == "local"){
 
-                        // Try inserting Steiner points at different candidate locations
-                        vector<Point> candidate_points;
+                Point steiner_point_temp;
+                
+                CDT cdt_best = cdt;
 
-                        // Midpoints of triangle edges
-                        candidate_points.push_back(CGAL::midpoint(p1, p2));
-                        candidate_points.push_back(CGAL::midpoint(p2, p3));
-                        candidate_points.push_back(CGAL::midpoint(p1, p3));
+                bool checked = false;
 
-                        // Circumcenter of the triangle
-                        Point circumcenter = CGAL::circumcenter(p1, p2, p3);
-                        if (polygon.bounded_side(circumcenter) == CGAL::ON_BOUNDED_SIDE) {
-                            candidate_points.push_back(circumcenter);
-                        }
+                // check all 5 methods
+                CDT cdt_new = cdt;
+                steiner_point_temp = steiner_at_midpoint(cdt_new, polygon);
+                new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+                if (new_obtuse_triangle_count <= obtuse_triangle_count){
+                    cdt_best = cdt_new;
+                    steiner_point = steiner_point_temp;
+                    checked = true;
+                }
 
-                        // Centroid of the triangle (fallback)
-                        candidate_points.push_back(CGAL::centroid(p1, p2, p3));
+                cdt_new = cdt;
+                steiner_point_temp = steiner_at_circumcenter(cdt_new, polygon);
+                new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+                if (new_obtuse_triangle_count <= obtuse_triangle_count){
+                    cdt_best = cdt_new;
+                    steiner_point = steiner_point_temp;
+                    checked = true;
+                }
 
-                        // Evaluate candidates
-                        Point best_point;
-                        int best_obtuse_count = obtuse_triangle_count;
+                cdt_new = cdt;
+                steiner_point_temp = steiner_at_projection(cdt_new, polygon);
+                new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+                if (new_obtuse_triangle_count <= obtuse_triangle_count){
+                    cdt_best = cdt_new;
+                    steiner_point = steiner_point_temp;
+                    checked = true;
+                }
 
-                        for (const auto& candidate : candidate_points) {
-                            if (!valid_steiner(candidate, cdt)) {
-                                continue; // Skip invalid candidates
-                            }
+                cdt_new = cdt;
+                steiner_point_temp = steiner_at_centroid(cdt_new, polygon);
+                new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+                if (new_obtuse_triangle_count <= obtuse_triangle_count){
+                    cdt_best = cdt_new;
+                    steiner_point = steiner_point_temp;
+                    checked = true;
+                }
 
-                            // Temporarily insert the candidate
-                            CDT::Vertex_handle vh_candidate = cdt.insert(candidate);
+                //same for 5th unimplimented method
 
-                            // Check if the vertex can be safely removed
-                            bool removable = !cdt.are_there_incident_constraints(vh_candidate);
+                if (checked == false) break;
+                cdt = cdt_best;
+                obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
 
-                            int new_obtuse_count = -1;
-                            if (removable) {
-                                // Count obtuse triangles only if removable
-                                new_obtuse_count = count_obtuse_triangles(cdt, polygon);
-                                cdt.remove(vh_candidate); // Safe removal
-                            } else {
-                                // Skip removal and rollback by removing manually
-                                cdt.remove_incident_constraints(vh_candidate);
-                                cdt.remove(vh_candidate); // Now it is safe to remove
-                            }
-
-                            // Keep track of the best candidate
-                            if (new_obtuse_count != -1 && new_obtuse_count < best_obtuse_count) {
-                                best_obtuse_count = new_obtuse_count;
-                                best_point = candidate;
-                            }
-                        }
-
-                        // Insert the best candidate, if found
-                        if (best_obtuse_count < obtuse_triangle_count) {
-                            cdt.insert(best_point);
-                            obtuse_triangle_count = best_obtuse_count;
-                            points.push_back(best_point);
-                        }
-
-                        // Break out of the loop once a point is inserted, to perform incremental local improvements
-                        break;
-                    }
-                } 
             }
             //simulated annealing
-            else if (method == "sa") {
+            else if (method == "sa"){
                 cout << method << endl;
             }
             //ant colony
-            else if (method == "ant") {
+            else if (method == "ant"){
                 cout << method << endl;
             }
         }
-        else {
+        else{
             if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
             else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
             else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
+            else if (smethod == 4) steiner_point = steiner_at_centroid(cdt, polygon);
         }
 
         //add Steiner point only if it is not null
