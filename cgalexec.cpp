@@ -33,9 +33,6 @@ using namespace std;
 using namespace boost::json;
 
 
-//
-//TODO PARAMETERS IN JSON
-//
 
 std::string gmpz_to_string(const CGAL::Gmpz& value) {
     //use an ostringstream to convert Gmpz to string
@@ -286,6 +283,8 @@ bool valid_steiner(Point steiner_point, const CDT& cdt){
     return true; //if point does not exist in the cdt
 }
 
+
+
 Point steiner_at_midpoint(CDT& cdt, Polygon polygon){
     int triangle_count = 0;
     //if triangle results to a non valid point, loops for another triangle
@@ -386,7 +385,6 @@ Point steiner_at_centroid(CDT& cdt, Polygon polygon){
         triangle_count++;
     }
 }
-
 
 
 Point steiner_at_projection(CDT& cdt, Polygon polygon){
@@ -509,25 +507,48 @@ int main(int argc, char *argv[]){
         additional_constraints.push_back(constraint);
     }
 
-    std::string method = obj["method"].as_string().c_str();
-    
+    //desired delaunay method
+    std::string method = "";
+    if (obj.contains("method")) method = obj["method"].as_string().c_str();
+
+    //default parameters to avoid crashing
+    int L = 1;              //number of iterations
+    double alpha = 0.0;     //weight for obtuse angles
+    double beta = 0.0;      //weight for steiner points
+    double kappa = 0.0;
+    double lambda = 0.0;
+    double psi = 0.0;
+    double xi = 0.0;
+
+    //desired parameters
     map<std::string, double> parameters;
-    for (const auto& param : obj["parameters"].as_object()){
-        //check if the value can be treated as a double
-        if (param.value().is_double()) {
-            parameters[std::string(param.key())] = param.value().as_double();
-        }
-        else if (param.value().is_int64()) {
-            //convert integers to double
-            parameters[std::string(param.key())] = static_cast<double>(param.value().as_int64());
-        }
-        else {
-            //log unsupported types
-            cerr << "Warning: Parameter " << param.key() << " is not a numeric type and will be ignored." << endl;
+    if (obj.contains("parameters")) {
+        for (const auto& param : obj["parameters"].as_object()) {
+            //check if the value can be treated as a double
+            if (param.value().is_double()) {
+                parameters[std::string(param.key())] = param.value().as_double();
+            }
+            else if (param.value().is_int64()) {
+                //convert integers to double
+                parameters[std::string(param.key())] = static_cast<double>(param.value().as_int64());
+            }
+            else {
+                //log unsupported types
+                cerr << "Warning: Parameter " << param.key() << " is not a numeric type and will be ignored." << endl;
+            }
+            if (param.key() == "alpha") L = parameters[std::string(param.key())];
+            if (param.key() == "alpha") alpha = parameters[std::string(param.key())];
+            if (param.key() == "beta") beta = parameters[std::string(param.key())];
+            if (param.key() == "kappa") kappa = parameters[std::string(param.key())];
+            if (param.key() == "lambda") lambda = parameters[std::string(param.key())];
+            if (param.key() == "psi") psi = parameters[std::string(param.key())];
+            if (param.key() == "xi") xi = parameters[std::string(param.key())];
         }
     }
     
-    bool delaunay = obj["delaunay"].as_bool();
+    //use delaunay method or not
+    bool delaunay = false;
+    if (obj.contains("delaunay")) delaunay = obj["delaunay"].as_bool();
 
     //create Constrained Delaunay Triangulation (cdt) and Polygon for region boundary
     Polygon polygon;
@@ -538,34 +559,25 @@ int main(int argc, char *argv[]){
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
     CGAL::draw(cdt);
 
-    //select steiner point placement method
-    int smethod;
-    if (argc > 2) smethod = atoi(argv[2]);
-    else{
-        cout << "Enter method number (1,2,3,4)" << endl;
-        cin >> smethod;
-    }
-
     //give maximum amount of allowed steiner points
     int steiner_max;
-    if (argc > 3) steiner_max = atoi(argv[3]);
+    if (argc > 2) steiner_max = atoi(argv[2]);
     else{
         cout << "Enter number of max steiner points:" << endl;
         cin >> steiner_max;
     }
 
-    //insert steiner points based on the selected method
     int new_obtuse_triangle_count;
-    for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
-        Point steiner_point;
-        if (delaunay == true){
-             //local search
-            if (method == "local"){
+    if (delaunay == true) {
+        //local search
+        if (method == "local") {
+            for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
 
+                Point steiner_point;
                 Point steiner_point_temp;
-                
-                CDT cdt_best = cdt;
 
+                CDT cdt_best = cdt;
+                
                 bool checked = false;
 
                 // check all 5 methods
@@ -610,33 +622,72 @@ int main(int argc, char *argv[]){
                 if (checked == false) break;
                 cdt = cdt_best;
                 obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
-
-            }
-            //simulated annealing
-            else if (method == "sa"){
-                cout << method << endl;
-            }
-            //ant colony
-            else if (method == "ant"){
-                cout << method << endl;
             }
         }
-        else{
-            if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
-            else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
-            else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
-            else if (smethod == 4) steiner_point = steiner_at_centroid(cdt, polygon);
+        //simulated annealing
+        else if (method == "sa") {
+            cout << method << endl;
         }
+        //ant colony
+        else if (method == "ant") {
+            cout << method << endl;
+        }
+        else cout << "Invalid method: " << method << endl;
+    }
 
-        //add Steiner point only if it is not null
-        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
-        else break; //break if no valid steiner points are left
+    else {
+        CDT original_cdt(cdt);
+        CDT best_cdt(cdt);
+        int best_method = 0;
+        int min_obtuse = obtuse_triangle_count;
+        vector<Point> method_points[5];
+        for (int smethod = 1; smethod <= 5; smethod++){
+            cdt = original_cdt;
+            method_points[smethod-1] = points;
+            for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
+                Point steiner_point;
+                if (smethod == 1) steiner_point = steiner_at_midpoint(cdt, polygon);
+                else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt, polygon);
+                else if (smethod == 3) steiner_point = steiner_at_projection(cdt, polygon);
+                else if (smethod == 4) steiner_point = steiner_at_centroid(cdt, polygon);
+                //else if (smethod == 5) steiner_point = steiner_at_(cdt, polygon);
+
+                //add Steiner point only if it is not null
+                if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) method_points[smethod-1].push_back(steiner_point);
+                else break; //break if no valid steiner points are left
+            }
+
+            //better method found
+            obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+            if (obtuse_triangle_count < min_obtuse){
+                best_method = smethod;
+                min_obtuse = obtuse_triangle_count;
+                best_cdt = cdt;
+            }
+        }
+        //when no method has less obtuse triangles than initial cdt
+        if (best_method == 0){
+            cout << "There is no converging method" << endl;
+            return 0;
+        }
+        
+        cout << "Best method is: ";
+        if (best_method == 1) cout << "Steiner at midpoint";
+        else if (best_method == 2) cout << "Steiner at circumcenter";
+        else if (best_method == 3) cout << "Steiner at projection";
+        else if (best_method == 4) cout << "Steiner at centroid";
+        cout << endl;
+        
+        //return best method
+        obtuse_triangle_count = min_obtuse;
+        cdt = best_cdt;
+        points = method_points[best_method-1];
     }
 
     //recount obtuse triangles after inserting steiner points and redraw
     obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
-    cout << points.size() - num_points << " Steiner points added" << endl;
+    cout << "Steiner points added: " << points.size() - num_points << endl;
     CGAL::draw(cdt);
 
     //create segments from cdt for the output file
