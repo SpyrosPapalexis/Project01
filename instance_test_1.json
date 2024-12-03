@@ -25,5 +25,5 @@
         "kappa": 10,
         "L": 30
     },
-    "delaunay": false
+    "delaunay": true
 }

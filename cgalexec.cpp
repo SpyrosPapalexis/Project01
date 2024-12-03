@@ -570,7 +570,7 @@ int main(int argc, char *argv[]){
     int new_obtuse_triangle_count;
     if (delaunay == true) {
         //local search
-        if (method == "local") {
+        if (method == "local"){
             for (int i = 0; i < steiner_max && obtuse_triangle_count > 0; i++){
 
                 Point steiner_point;
