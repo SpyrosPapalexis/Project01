@@ -66,5 +66,5 @@
         "kappa": 10,
         "L": 30
     },
-    "delaunay": true
+    "delaunay": false
 }
