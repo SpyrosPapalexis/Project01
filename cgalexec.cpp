@@ -449,6 +449,8 @@ Point steiner_at_projection(CDT& cdt, Polygon polygon){
 
 
 int main(int argc, char *argv[]){
+    srand(time(NULL));
+
     //file name insert to open
     std::string filename;
     if (argc > 1) filename = argv[1];
@@ -657,18 +659,19 @@ int main(int argc, char *argv[]){
                 epsilon = alpha * obtuse_triangle_count + beta * steiner_count;
 
                 if (epsilon - old_epsilon < 0){
-                    cout << "added one" << endl;
                     cdt = cdt_new;
                     points.push_back(steiner_point);
                 }else{
                     r = rand()%RANDSIZE;
                     if (exp((old_epsilon - epsilon)/temperature)*RANDSIZE >= r){
-                        cout << "added one" << endl;
                         cdt = cdt_new;
                         points.push_back(steiner_point);
                     }
+                    else{
+                        obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+                        cdt_new = cdt;
+                    }
                 }
-                obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
                 temperature = temperature - 1.0/L;
             }
         }
@@ -680,33 +683,33 @@ int main(int argc, char *argv[]){
     }
     //non-delaunay methods
     else {
-        CDT best_cdt = cdt;
+        CDT cdt_best = cdt;
         int best_method = 0;
         int min_obtuse = obtuse_triangle_count;
         vector<Point> method_points[5];
         for (int smethod = 1; smethod <= 5; smethod++){
-            CDT temp_cdt = cdt;
+            CDT cdt_new = cdt;
             method_points[smethod-1] = points;
             new_obtuse_triangle_count = obtuse_triangle_count;
             for (int i = 0; i < L && new_obtuse_triangle_count > 0; i++){
                 Point steiner_point;
-                if (smethod == 1) steiner_point = steiner_at_midpoint(temp_cdt, polygon);
-                else if (smethod == 2) steiner_point = steiner_at_circumcenter(temp_cdt, polygon);
-                else if (smethod == 3) steiner_point = steiner_at_projection(temp_cdt, polygon);
-                else if (smethod == 4) steiner_point = steiner_at_centroid(temp_cdt, polygon);
+                if (smethod == 1) steiner_point = steiner_at_midpoint(cdt_new, polygon);
+                else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt_new, polygon);
+                else if (smethod == 3) steiner_point = steiner_at_projection(cdt_new, polygon);
+                else if (smethod == 4) steiner_point = steiner_at_centroid(cdt_new, polygon);
                 else if (smethod == 5) break;
-                //else if (smethod == 5) steiner_point = steiner_at_(temp_cdt, polygon);
+                //else if (smethod == 5) steiner_point = steiner_at_(cdt_new, polygon);
 
                 //compare the obtuse amount with that of the previous step
-                if (count_obtuse_triangles(temp_cdt, polygon) > new_obtuse_triangle_count) break;
+                if (count_obtuse_triangles(cdt_new, polygon) > new_obtuse_triangle_count) break;
 
-                new_obtuse_triangle_count = count_obtuse_triangles(temp_cdt, polygon);
+                new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
 
                 //better method found
                 if (new_obtuse_triangle_count < min_obtuse){
                     best_method = smethod;
                     min_obtuse = new_obtuse_triangle_count;
-                    best_cdt = temp_cdt;
+                    cdt_best = cdt_new;
                 }
 
                 //add Steiner point only if it is not null
@@ -726,7 +729,7 @@ int main(int argc, char *argv[]){
         //return best method
         if (best_method != 0){
             obtuse_triangle_count = min_obtuse;
-            cdt = best_cdt;
+            cdt = cdt_best;
             points = method_points[best_method-1];
         }
     }
