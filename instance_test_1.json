@@ -23,7 +23,7 @@
         "psi": 3.0,
         "lambda": 0.5,
         "kappa": 10,
-        "L": 1
+        "L": 30
     },
-    "delaunay": false
+    "delaunay": true
 }
