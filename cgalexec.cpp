@@ -628,7 +628,7 @@ Point steiner_at_projection(CDT& cdt, Polygon polygon){
 
 
 //brute force method for "delaunay": false
-CDT non_delaunay(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L){
+CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L){
     CDT cdt_best = cdt;
     int best_method = 0;
     int min_obtuse = obtuse_triangle_count;
@@ -899,7 +899,7 @@ int main(int argc, char *argv[]){
         }
     }
     
-    //use delaunay method or not
+    //delaunay triangulation or brute force
     bool delaunay = false;
     if (obj.contains("delaunay")) delaunay = obj["delaunay"].as_bool();
 
@@ -921,7 +921,7 @@ int main(int argc, char *argv[]){
         else cout << "Invalid method: " << method << endl;
     }
     //brute force method
-    else cdt = non_delaunay(cdt, obtuse_triangle_count, points, polygon, L);
+    else cdt = brute_force(cdt, obtuse_triangle_count, points, polygon, L);
 
     //recount obtuse triangles after inserting steiner points and redraw
     obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
