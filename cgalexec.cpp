@@ -603,7 +603,7 @@ CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polyg
             }
 
             //add Steiner point only if it doesnt overlap
-            if (steiner_point[0] != nan("") && steiner_point[1] != nan("")){
+            if (!isnan(steiner_point[0]) && !isnan(steiner_point[1])){
                 method_points[smethod-1].push_back(steiner_point);
                 find_obtuse_count = 0;
             }else{
@@ -631,7 +631,7 @@ CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polyg
     //     steiner_point = steiner_at_polygon(cdt, polygon, triangle);
 
     //     //add Steiner point only if it is not null
-    //     if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
+    //     if (isnan(steiner_point[0]) && isnan(steiner_point[1])) points.push_back(steiner_point);
     //     else break; //break if no valid steiner points are left
     // }
 
@@ -696,7 +696,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         cdt = cdt_best;
         obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
         //add Steiner point only if it doesnt overlap
-        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")){
+        if (!isnan(steiner_point[0]) && !isnan(steiner_point[1])){
             points.push_back(steiner_point);
             find_obtuse_count = 0;
         }else{
@@ -729,7 +729,7 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
         //else steiner_point = steiner_at_polygon(cdt, polygon, triangle);
 
         //check for steiner point validity
-        if (steiner_point[0] == nan("") && steiner_point[1] == nan("")){
+        if (isnan(steiner_point[0]) && isnan(steiner_point[0])){
             find_obtuse_count++;
             continue;
         }else find_obtuse_count = 0;
