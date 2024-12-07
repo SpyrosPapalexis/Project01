@@ -579,9 +579,11 @@ CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polyg
         CDT cdt_new = cdt;
         method_points[smethod-1] = points;
         int new_obtuse_triangle_count = obtuse_triangle_count;
+        int find_obtuse_count = 0;  //counter for find triangle function if steiner point is invalid
         for (int i = 0; i < L && new_obtuse_triangle_count > 0; i++){
             Point steiner_point;
-            Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, 0);
+            Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
+            if (triangle == nullptr) break;
             if (smethod == 1) steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
             else if (smethod == 2) steiner_point = steiner_at_circumcenter(cdt_new, polygon, triangle);
             else if (smethod == 3) steiner_point = steiner_at_projection(cdt_new, polygon, triangle);
@@ -600,9 +602,14 @@ CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polyg
                 cdt_best = cdt_new;
             }
 
-            //add Steiner point only if it is not null
-            if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) method_points[smethod-1].push_back(steiner_point);
-            else break; //break if no valid steiner points are left
+            //add Steiner point only if it doesnt overlap
+            if (steiner_point[0] != nan("") && steiner_point[1] != nan("")){
+                method_points[smethod-1].push_back(steiner_point);
+                find_obtuse_count = 0;
+            }else{
+                find_obtuse_count++;
+                i--;
+            }
         }
     }
 
@@ -636,13 +643,15 @@ CDT brute_force(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polyg
 CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L){
     Point steiner_point;
     Point steiner_point_temp;
+    int find_obtuse_count = 0;
     for (int i = 0; i < L && obtuse_triangle_count > 0; i++){
         CDT cdt_best = cdt;
         bool checked = false;
 
         // check all 5 methods
         CDT cdt_new = cdt;
-        Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, 0);
+        Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
+        if (triangle == nullptr) break;
         steiner_point_temp = steiner_at_midpoint(cdt_new, polygon, triangle);
         int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         if (new_obtuse_triangle_count <= obtuse_triangle_count){
@@ -652,6 +661,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         }
 
         cdt_new = cdt;
+        triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_circumcenter(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         if (new_obtuse_triangle_count <= obtuse_triangle_count){
@@ -661,6 +671,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         }
 
         cdt_new = cdt;
+        triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_projection(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         if (new_obtuse_triangle_count <= obtuse_triangle_count){
@@ -670,6 +681,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         }
 
         cdt_new = cdt;
+        triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_centroid(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         if (new_obtuse_triangle_count <= obtuse_triangle_count){
@@ -683,9 +695,14 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         if (checked == false) break;
         cdt = cdt_best;
         obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
-        //add Steiner point only if it is not null
-        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")) points.push_back(steiner_point);
-        else break; //break if no valid steiner points are left
+        //add Steiner point only if it doesnt overlap
+        if (steiner_point[0] != nan("") && steiner_point[1] != nan("")){
+            points.push_back(steiner_point);
+            find_obtuse_count = 0;
+        }else{
+            find_obtuse_count++;
+            i--;
+        }
     }
     return cdt;
 }
@@ -699,8 +716,10 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
     double old_epsilon;
     double temperature = 1;
     int steiner_count = 0;
+    int find_obtuse_count = 0;
     while (temperature >= 0 && obtuse_triangle_count > 0){
-        Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, 0);
+        Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
+        if (triangle == nullptr) break;
         old_epsilon = epsilon;
         int r = rand()%4;
         if (r == 0) steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
@@ -708,6 +727,12 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
         else if (r == 2) steiner_point = steiner_at_projection(cdt_new, polygon, triangle);
         else if (r == 3) steiner_point = steiner_at_centroid(cdt_new, polygon, triangle);
         //else steiner_point = steiner_at_polygon(cdt, polygon, triangle);
+
+        //check for steiner point validity
+        if (steiner_point[0] == nan("") && steiner_point[1] == nan("")){
+            find_obtuse_count++;
+            continue;
+        }else find_obtuse_count = 0;
 
         obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         steiner_count++;
@@ -754,7 +779,7 @@ double radius_to_height(Face_handle triangle){
     double R = (a * b * c) / (4.0 * area);
 
     //find longest side and height
-    double longest_side = max(a, b, c);
+    double longest_side = max({a, b, c});
     double h = (2.0 * area)/longest_side;
 
     return R/h;
