@@ -788,6 +788,86 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
     return cdt;
 }
 
+double radius_to_height(Face_handle face){
+    //get the vertices of the triangle
+    Point p1 = face->vertex(0)->point();
+    Point p2 = face->vertex(1)->point();
+    Point p3 = face->vertex(2)->point();
+
+    //calculate the lengths of the sides
+    double a = sqrt(CGAL::squared_distance(p1, p2));
+    double b = sqrt(CGAL::squared_distance(p2, p3));
+    double c = sqrt(CGAL::squared_distance(p3, p1));
+
+    //find semi-perimeter to use for Heron's formula
+    double s = (a + b + c) / 2.0;
+
+    //find the area using Heron's formula
+    double area = sqrt(s * (s - a) * (s - b) * (s - c));
+
+    //find circumradius using area
+    double R = (a * b * c) / (4.0 * area);
+
+    //find longest side and height
+    double longest_side = max(a, b, c);
+    double h = (2.0 * area)/longest_side;
+
+    return R/h;
+}
+
+
+void improve_triangulation(CDT cdt, Polygon polygon, Face_handle face, double xi, double psi){
+    Point steiner_point;
+    //for following arrays:
+    // 0 refers to projection
+    // 1 refers to circumcenter
+    // 2 refers to midpoint
+    // 3 refers to mean of adjacent obtuse triangles
+    double heuristic[4];
+    double probability[4];
+    int t[4] = {1,1,1,1};
+
+    double ratio = radius_to_height(face);
+
+    heuristic[0] = max(0.0,(ratio-1)/ratio);
+    heuristic[1] = ratio/(2+ratio);
+    heuristic[2] = max(0.0,(3-2*ratio)/3);
+    heuristic[3] = 1;
+
+    double sum = 0;
+    for (int i = 0; i < 4; i++){
+        sum=+ pow(t[i],xi)*pow(heuristic[i],psi);
+    }
+    
+    for (int sp = 0; sp < 4; sp++){
+        probability[sp]=pow(t[sp],xi)*pow(heuristic[sp],psi)/sum*RANDSIZE;
+    }
+
+    int r = rand()%RANDSIZE;
+    if (r <= probability[0]) steiner_point = steiner_at_projection(cdt, polygon);
+    else if (r - probability[0] <= probability[1]) steiner_point = steiner_at_circumcenter(cdt, polygon);
+    else if (r - probability[0] - probability[1] <= probability[2]) steiner_point = steiner_at_midpoint(cdt, polygon);
+    else steiner_point = steiner_at_polygon(cdt, polygon);
+}
+
+
+//ant colony optimization delaunay method
+CDT ant_colony_optimization(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L, int kappa, double xi, double psi){
+    Point steiner_point;
+    CDT cdt_new = cdt;
+    for (int c = 0; c < L; c++){
+        for (int k = 0; k < kappa; k++){
+
+            //improve_triangulation();
+            //evaluate_triangulation();
+        }
+
+        //save_best_triangulation();
+        //update_pheromones();
+    }
+    return cdt;
+}
+
 
 
 int main(int argc, char *argv[]){
@@ -912,12 +992,10 @@ int main(int argc, char *argv[]){
     cout << "Obtuse triangle count is: " << obtuse_triangle_count << endl;
     CGAL::draw(cdt);
 
-    if (delaunay == true) {
+    if (delaunay == true){
         if (method == "local") cdt = local_search(cdt, obtuse_triangle_count, points, polygon, L); 
         else if (method == "sa") cdt = simulated_annealing(cdt, obtuse_triangle_count, points, polygon, L, alpha, beta);
-        else if (method == "ant") {
-            cout << method << endl;
-        }
+        else if (method == "ant") cdt = ant_colony_optimization(cdt, obtuse_triangle_count, points, polygon, L, kappa, xi, psi);
         else cout << "Invalid method: " << method << endl;
     }
     //brute force method
