@@ -53,7 +53,7 @@
     ],
     "num_constraints": 0,
     "additional_constraints": [],
-    "method": "local",
+    "method": "sa",
     "parameters": {
         "alpha": 2.0,
         "beta": 5.0,

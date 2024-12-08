@@ -4,7 +4,6 @@
 #include <string>
 #include <boost/json.hpp>
 #include <boost/json/src.hpp>
-#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
 #include <CGAL/Exact_predicates_inexact_constructions_kernel.h>
 #include <CGAL/Constrained_Delaunay_triangulation_2.h>
 #include <CGAL/draw_triangulation_2.h>
@@ -13,7 +12,6 @@
 #include <cmath>
 #include <numeric>
 
-typedef CGAL::Exact_predicates_exact_constructions_kernel EK;
 typedef CGAL::Exact_predicates_inexact_constructions_kernel K;
 typedef CGAL::Triangulation_vertex_base_2<K> Vb;
 typedef CGAL::Constrained_triangulation_face_base_2<K> Fb;
@@ -27,7 +25,6 @@ typedef K::Segment_2 Segment;
 typedef CDT::Face_handle Face_handle;
 typedef CDT::Edge_iterator Edge_iterator;
 typedef K::Line_2 Line;
-typedef EK::FT FT;
 typedef CDT::Vertex_handle Vertex_handle;
 
 using namespace std;
@@ -37,8 +34,8 @@ using namespace boost::json;
 
 /////////////////////////////////////
 //TODO
-//seed for rand in SA
-// 
+//change last case in ant colony to polygon
+//enable polygon if we manage to fix it
 /////////////////////////////////////
 
 
@@ -279,6 +276,18 @@ Face_handle find_obtuse_triangle(CDT& cdt, Polygon polygon, int triangle_count){
 }
 
 
+bool is_on_constraint(const Point& source, const Point& target, const Point& steiner_point){
+    //check for collinear
+    if (CGAL::orientation(source, target, steiner_point) != CGAL::COLLINEAR){
+        return false;
+    }
+
+    //check if its on the line
+    return (std::min(source.x(), target.x()) <= steiner_point.x() &&
+            std::max(source.x(), target.x()) >= steiner_point.x() &&
+            std::min(source.y(), target.y()) <= steiner_point.y() &&
+            std::max(source.y(), target.y()) >= steiner_point.y());
+}
 
 bool valid_steiner(Point steiner_point, const CDT& cdt){
     //iterate all finite edges in the cdt
@@ -288,6 +297,11 @@ bool valid_steiner(Point steiner_point, const CDT& cdt){
         Point target = cdt.segment(*edge).target();
         if (source == steiner_point || target == steiner_point){
             return false; //if point already exists in the cdt
+        }
+        if (cdt.is_constrained(*edge)){
+            if (is_on_constraint(source, target, steiner_point)){
+                return false; //if point lies on a constrained edge
+            }
         }
     }
     return true; //if point does not exist in the cdt
@@ -692,7 +706,11 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
 
         //same for 5th unimplimented method
 
-        if (checked == false) break;
+        if (checked == false){
+            find_obtuse_count++;
+            i--;
+            continue;
+        }
         cdt = cdt_best;
         obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
         //add Steiner point only if it doesnt overlap
@@ -732,7 +750,7 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
         if (isnan(steiner_point[0]) && isnan(steiner_point[0])){
             find_obtuse_count++;
             continue;
-        }else find_obtuse_count = 0;
+        }
 
         obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         steiner_count++;
@@ -741,16 +759,19 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
         if (epsilon - old_epsilon < 0){
             cdt = cdt_new;
             points.push_back(steiner_point);
+            find_obtuse_count = 0;
         }
         else{
             r = rand()%RANDSIZE;
             if (exp((old_epsilon - epsilon)/temperature)*RANDSIZE >= r){
                 cdt = cdt_new;
                 points.push_back(steiner_point);
+                find_obtuse_count = 0;
             }
             else{
                 obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
                 cdt_new = cdt;
+                find_obtuse_count++;
             }
         }
         temperature = temperature - 1.0/L;
@@ -786,54 +807,106 @@ double radius_to_height(Face_handle triangle){
 }
 
 
-void improve_triangulation(CDT cdt, Polygon polygon, Face_handle triangle, double xi, double psi){
+Point improve_triangulation(CDT cdt, Polygon polygon, double xi, double psi, double t[]){
+    CDT cdt_new = cdt;
     Point steiner_point;
     //for following arrays:
     // 0 refers to projection
     // 1 refers to circumcenter
     // 2 refers to midpoint
     // 3 refers to mean of adjacent obtuse triangles
+
+    //find a random valid triangle
+    Face_handle triangle;
+    int obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+    if (obtuse_triangle_count == 0) return Point(nan(""), nan(""));
+    int r;
+    do{
+        r = rand()%obtuse_triangle_count;
+        triangle = find_obtuse_triangle(cdt_new, polygon, r);
+    }while (triangle == nullptr);
     double heuristic[4];
     double probability[4];
-    int t[4] = {1,1,1,1};
 
+    //find ratio of current triangle
     double ratio = radius_to_height(triangle);
 
+    //calculate heuristics
     heuristic[0] = max(0.0,(ratio-1)/ratio);
     heuristic[1] = ratio/(2+ratio);
     heuristic[2] = max(0.0,(3-2*ratio)/3);
     heuristic[3] = 1;
 
+    //find sum for the probability
     double sum = 0;
     for (int i = 0; i < 4; i++){
         sum=+ pow(t[i],xi)*pow(heuristic[i],psi);
     }
     
+    //find the probability
     for (int sp = 0; sp < 4; sp++){
         probability[sp]=pow(t[sp],xi)*pow(heuristic[sp],psi)/sum*RANDSIZE;
     }
 
-    int r = rand()%RANDSIZE;
-    if (r <= probability[0]) steiner_point = steiner_at_projection(cdt, polygon, triangle);
-    else if (r - probability[0] <= probability[1]) steiner_point = steiner_at_circumcenter(cdt, polygon, triangle);
-    else if (r - probability[0] - probability[1] <= probability[2]) steiner_point = steiner_at_midpoint(cdt, polygon, triangle);
-    else steiner_point = steiner_at_polygon(cdt, polygon, triangle);
+    //find a random method
+    r = rand()%RANDSIZE;
+    if (r <= probability[0]) steiner_point = steiner_at_projection(cdt_new, polygon, triangle);
+    else if (r - probability[0] <= probability[1]) steiner_point = steiner_at_circumcenter(cdt_new, polygon, triangle);
+    else if (r - probability[0] - probability[1] <= probability[2]) steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
+    else steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);   //change to polygon later
+
+    //if the steiner point benefits the cdt, return it. otherwise return nan
+    int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+    if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        return steiner_point;
+    }
+    return Point(nan(""), nan(""));
 }
 
 
-//ant colony optimization delaunay method
-CDT ant_colony_optimization(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L, int kappa, double xi, double psi){
-    Point steiner_point;
+CDT save_best_triangulation(CDT cdt, vector<Point> points, Polygon polygon){
     CDT cdt_new = cdt;
-    for (int c = 0; c < L; c++){
-        for (int k = 0; k < kappa; k++){
+    for (const Point& p : points){
+        cdt_new.insert(p);
+        int obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+        int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+        if (new_obtuse_triangle_count <= obtuse_triangle_count){
+            cdt = cdt_new;
+            continue;
+        }
+        cdt_new = cdt;
+    }
+}
 
-            //improve_triangulation();
-            //evaluate_triangulation();
+
+void update_pheromones(int steiner_count, int obtuse_count, bool improvement, double alpha, double beta, double lambda, double t[]){
+
+    double delta;
+    if (improvement) delta = 1/(1+alpha*obtuse_count+beta*steiner_count);
+    else delta = 0.0;
+    double t_new[4];
+    for (int i = 0; i < 4; i++){
+        t_new[i] = (1-lambda)*t[i] + delta;
+    }
+}
+
+//ant colony optimization delaunay method
+CDT ant_colony_optimization(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L, double alpha, double beta, int kappa, double lambda, double xi, double psi){
+    int steiner_count = 0;
+    Point steiner_point;
+    double t[4]={1,1,1,1};
+    for (int c = 0; c < L; c++){
+
+        vector<Point> valid_points;
+        
+        for (int k = 0; k < kappa; k++){
+            Point steiner_point = improve_triangulation(cdt, polygon, xi, psi, t);
+            //if non nan point returned from previous function, add it to the valid point vector
+            if (!isnan(steiner_point[0]) && !isnan(steiner_point[1])) valid_points.push_back(steiner_point);
         }
 
-        //save_best_triangulation();
-        //update_pheromones();
+        cdt = save_best_triangulation(cdt, valid_points, polygon);
+        //update_pheromones(steiner_count, obtuse_count, improvement, alpha, beta, lambda, t);
     }
     return cdt;
 }
@@ -965,7 +1038,7 @@ int main(int argc, char *argv[]){
     if (delaunay == true){
         if (method == "local") cdt = local_search(cdt, obtuse_triangle_count, points, polygon, L); 
         else if (method == "sa") cdt = simulated_annealing(cdt, obtuse_triangle_count, points, polygon, L, alpha, beta);
-        else if (method == "ant") cdt = ant_colony_optimization(cdt, obtuse_triangle_count, points, polygon, L, kappa, xi, psi);
+        else if (method == "ant") cdt = ant_colony_optimization(cdt, obtuse_triangle_count, points, polygon, L, alpha, beta, kappa, lambda, xi, psi);
         else cout << "Invalid method: " << method << endl;
     }
     //brute force method
