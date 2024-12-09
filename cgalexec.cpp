@@ -668,7 +668,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         if (triangle == nullptr) break;
         steiner_point_temp = steiner_at_midpoint(cdt_new, polygon, triangle);
         int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
-        if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        if (new_obtuse_triangle_count < obtuse_triangle_count){
             cdt_best = cdt_new;
             steiner_point = steiner_point_temp;
             checked = true;
@@ -678,7 +678,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_circumcenter(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
-        if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        if (new_obtuse_triangle_count < obtuse_triangle_count){
             cdt_best = cdt_new;
             steiner_point = steiner_point_temp;
             checked = true;
@@ -688,7 +688,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_projection(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
-        if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        if (new_obtuse_triangle_count < obtuse_triangle_count){
             cdt_best = cdt_new;
             steiner_point = steiner_point_temp;
             checked = true;
@@ -698,7 +698,7 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
         triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         steiner_point_temp = steiner_at_centroid(cdt_new, polygon, triangle);
         new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
-        if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        if (new_obtuse_triangle_count < obtuse_triangle_count){
             cdt_best = cdt_new;
             steiner_point = steiner_point_temp;
             checked = true;
@@ -730,15 +730,16 @@ CDT local_search(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Poly
 CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L, double alpha, double beta){
     Point steiner_point;
     CDT cdt_new = cdt;
-    double epsilon = alpha * obtuse_triangle_count;
-    double old_epsilon;
+    double energy = alpha * obtuse_triangle_count;
+    double old_energy;
     double temperature = 1;
     int steiner_count = 0;
     int find_obtuse_count = 0;
     while (temperature >= 0 && obtuse_triangle_count > 0){
+        cdt_new = cdt;
         Face_handle triangle = find_obtuse_triangle(cdt_new, polygon, find_obtuse_count);
         if (triangle == nullptr) break;
-        old_epsilon = epsilon;
+        old_energy = energy;
         int r = rand()%4;
         if (r == 0) steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
         else if (r == 1) steiner_point = steiner_at_circumcenter(cdt_new, polygon, triangle);
@@ -754,23 +755,23 @@ CDT simulated_annealing(CDT cdt, int obtuse_triangle_count, vector<Point>& point
 
         obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
         steiner_count++;
-        epsilon = alpha * obtuse_triangle_count + beta * steiner_count;
+        energy = alpha * obtuse_triangle_count + beta * steiner_count;
 
-        if (epsilon - old_epsilon < 0){
+        if (energy - old_energy < 0){
             cdt = cdt_new;
             points.push_back(steiner_point);
             find_obtuse_count = 0;
         }
         else{
             r = rand()%RANDSIZE;
-            if (exp((old_epsilon - epsilon)/temperature)*RANDSIZE >= r){
+            if (exp((old_energy - energy)/temperature)*RANDSIZE >= r){
                 cdt = cdt_new;
                 points.push_back(steiner_point);
                 find_obtuse_count = 0;
             }
             else{
                 obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
-                cdt_new = cdt;
+                //steiner_count--;
                 find_obtuse_count++;
             }
         }
@@ -807,7 +808,7 @@ double radius_to_height(Face_handle triangle){
 }
 
 
-Point improve_triangulation(CDT cdt, Polygon polygon, double xi, double psi, double t[]){
+Point improve_triangulation(CDT cdt, Polygon polygon, double xi, double psi, double t[], bool improved[]){
     CDT cdt_new = cdt;
     Point steiner_point;
     //for following arrays:
@@ -850,63 +851,88 @@ Point improve_triangulation(CDT cdt, Polygon polygon, double xi, double psi, dou
 
     //find a random method
     r = rand()%RANDSIZE;
-    if (r <= probability[0]) steiner_point = steiner_at_projection(cdt_new, polygon, triangle);
-    else if (r - probability[0] <= probability[1]) steiner_point = steiner_at_circumcenter(cdt_new, polygon, triangle);
-    else if (r - probability[0] - probability[1] <= probability[2]) steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
-    else steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);   //change to polygon later
+    int method;
+    if (r <= probability[0]){
+        steiner_point = steiner_at_projection(cdt_new, polygon, triangle);
+        method = 0;
+    }else if (r - probability[0] <= probability[1]){
+        steiner_point = steiner_at_circumcenter(cdt_new, polygon, triangle);
+        method = 1;
+    }else if (r - probability[0] - probability[1] <= probability[2]){
+        steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);
+        method = 2;
+    }else{
+        steiner_point = steiner_at_midpoint(cdt_new, polygon, triangle);   //change to polygon later
+        method = 3;
+    }
 
     //if the steiner point benefits the cdt, return it. otherwise return nan
     int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
     if (new_obtuse_triangle_count <= obtuse_triangle_count){
+        improved[method] = true;
         return steiner_point;
     }
     return Point(nan(""), nan(""));
 }
 
 
-CDT save_best_triangulation(CDT cdt, vector<Point> points, Polygon polygon){
+int save_best_triangulation(CDT& cdt, vector<Point>& points, vector<Point> steiner_points, Polygon polygon, double alpha, double beta, int steiner_count){
     CDT cdt_new = cdt;
-    for (const Point& p : points){
-        cdt_new.insert(p);
-        int obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
-        int new_obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
-        if (new_obtuse_triangle_count <= obtuse_triangle_count){
-            cdt = cdt_new;
+    int obtuse_triangle_count = count_obtuse_triangles(cdt, polygon);
+    double energy = alpha * obtuse_triangle_count + beta * steiner_count;
+
+    for (const Point& p : steiner_points){
+        if (valid_steiner(p, cdt_new)){
+            cdt_new.insert(p);
+        }else{
             continue;
+        }
+        double old_energy = energy;
+        obtuse_triangle_count = count_obtuse_triangles(cdt_new, polygon);
+        if (obtuse_triangle_count == 0) energy = 0;
+        else energy = alpha * obtuse_triangle_count + beta * steiner_count;
+
+        if (energy < old_energy){
+            steiner_count++;
+            cdt = cdt_new;
+            points.push_back(p);
         }
         cdt_new = cdt;
     }
+    return steiner_count;
 }
 
 
-void update_pheromones(int steiner_count, int obtuse_count, bool improvement, double alpha, double beta, double lambda, double t[]){
-
-    double delta;
-    if (improvement) delta = 1/(1+alpha*obtuse_count+beta*steiner_count);
-    else delta = 0.0;
-    double t_new[4];
+void update_pheromones(int steiner_count, int obtuse_count, bool improved[], double alpha, double beta, double lambda, double t[]){
     for (int i = 0; i < 4; i++){
-        t_new[i] = (1-lambda)*t[i] + delta;
+        double delta;
+        if (improved[i]) delta = 1/(1+alpha*obtuse_count+beta*steiner_count);
+        else delta = 0;
+        t[i] = (1-lambda)*t[i] + delta;
     }
 }
 
 //ant colony optimization delaunay method
 CDT ant_colony_optimization(CDT cdt, int obtuse_triangle_count, vector<Point>& points, Polygon polygon, int L, double alpha, double beta, int kappa, double lambda, double xi, double psi){
+    int obtuse_count = count_obtuse_triangles(cdt, polygon);
+    if (obtuse_count == 0) return cdt;
     int steiner_count = 0;
     Point steiner_point;
     double t[4]={1,1,1,1};
     for (int c = 0; c < L; c++){
-
+        
+        bool improved[4]={false,false,false,false};
         vector<Point> valid_points;
         
         for (int k = 0; k < kappa; k++){
-            Point steiner_point = improve_triangulation(cdt, polygon, xi, psi, t);
+            Point steiner_point = improve_triangulation(cdt, polygon, xi, psi, t, improved);
             //if non nan point returned from previous function, add it to the valid point vector
             if (!isnan(steiner_point[0]) && !isnan(steiner_point[1])) valid_points.push_back(steiner_point);
         }
 
-        cdt = save_best_triangulation(cdt, valid_points, polygon);
-        //update_pheromones(steiner_count, obtuse_count, improvement, alpha, beta, lambda, t);
+        steiner_count = save_best_triangulation(cdt, points, valid_points, polygon, alpha, beta, steiner_count);
+        obtuse_count = count_obtuse_triangles(cdt, polygon);
+        update_pheromones(steiner_count, obtuse_count, improved, alpha, beta, lambda, t);
     }
     return cdt;
 }
